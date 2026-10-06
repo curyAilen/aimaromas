@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# cloudinary
+CLOUDINARY_CLOUD_NAME=arj491gy
+CLOUDINARY_API_KEY=551995124434237
+CLOUDINARY_API_SECRET=KOyNwg4ZyHUUTyvKNgnY7MUu0xs
+.env
+.env.local
+.env.*.local
