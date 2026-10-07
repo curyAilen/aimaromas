@@ -83,18 +83,57 @@ export function ProductForm({ productId }: ProductFormProps) {
         setUploading(true);
         try {
             for (const file of Array.from(files)) {
-                const fd = new FormData();
-                fd.append("file", file);
-                if (productId) fd.append("id_product", productId);
+                // Verificar tamaño (máx 10 MB por seguridad)
+                if (file.size > 10 * 1024 * 1024) {
+                    alert(`La imagen ${file.name} es muy grande (máx 10 MB).`);
+                    continue;
+                }
 
+                // 1. Subir directo a Cloudinary (unsigned upload)
+                const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+                const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
+
+                if (!cloudName || !uploadPreset) {
+                    alert("Cloudinary no está configurado correctamente");
+                    continue;
+                }
+
+                const cloudFormData = new FormData();
+                cloudFormData.append("file", file);
+                cloudFormData.append("upload_preset", uploadPreset);
+                cloudFormData.append("folder", "mezo/productos");
+
+                const cloudRes = await fetch(
+                    `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+                    {
+                        method: "POST",
+                        body: cloudFormData,
+                    }
+                );
+
+                const cloudData = await cloudRes.json();
+
+                if (!cloudRes.ok || !cloudData.secure_url) {
+                    alert("Error al subir imagen a Cloudinary");
+                    console.error(cloudData);
+                    continue;
+                }
+
+                // 2. Guardar en la base de datos (solo la URL)
                 const res = await fetch("/api/products/upload", {
                     method: "POST",
-                    body: fd,
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        id_product: productId,
+                        url: cloudData.secure_url,
+                        public_id: cloudData.public_id,
+                    }),
                 });
+
                 const data = await res.json();
 
                 if (!res.ok) {
-                    alert(data.error || "Error al subir imagen");
+                    alert(data.error || "Error al guardar imagen");
                     continue;
                 }
 

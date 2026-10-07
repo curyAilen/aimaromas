@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSession } from "@/lib/auth";
-import { uploadImage } from "@/lib/cloudinary";
 import type { ResultSetHeader } from "mysql2";
 
 export async function POST(req: NextRequest) {
@@ -11,39 +10,29 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "No autorizado" }, { status: 401 });
         }
 
-        const formData = await req.formData();
-        const file = formData.get("file") as File;
-        const idProduct = formData.get("id_product") as string;
+        const body = await req.json();
+        const { id_product, url, public_id } = body;
 
-        if (!file) {
-            return NextResponse.json({ error: "No hay archivo" }, { status: 400 });
-        }
-
-        if (!idProduct) {
+        if (!url || !id_product) {
             return NextResponse.json(
-                { error: "Falta id_product. Guardá el producto primero." },
+                { error: "Faltan datos (url, id_product)" },
                 { status: 400 }
             );
         }
 
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-
-        const { url, publicId } = await uploadImage(buffer, "mezo/productos");
-
         const [result] = await pool.query<ResultSetHeader>(
             `INSERT INTO product_images (id_product, url, public_id, sort_order, createdAt)
        VALUES (?, ?, ?, 0, NOW())`,
-            [idProduct, url, publicId]
+            [id_product, url, public_id || null]
         );
 
         return NextResponse.json({
             ok: true,
             image: {
                 id_image: result.insertId,
-                id_product: Number(idProduct),
+                id_product: Number(id_product),
                 url,
-                public_id: publicId,
+                public_id: public_id || null,
                 sort_order: 0,
             },
         });
