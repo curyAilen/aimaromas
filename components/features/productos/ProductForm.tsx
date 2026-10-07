@@ -389,7 +389,7 @@ export function ProductForm({ productId }: ProductFormProps) {
                             )}
                             <input
                                 type="file"
-                                accept="image/*"
+                                accept="image/jpeg,image/jpg,image/png,image/webp"
                                 multiple
                                 onChange={handleUpload}
                                 className="hidden"
