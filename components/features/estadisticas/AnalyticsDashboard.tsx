@@ -7,7 +7,6 @@ import {
     DollarSign,
     Users,
     AlertCircle,
-    Package,
 } from "lucide-react";
 import {
     LineChart,
@@ -36,7 +35,19 @@ interface AnalyticsData {
         pending_total: number;
     };
     salesByDay: Array<{ date: string; orders: number; revenue: number }>;
-    topProducts: Array<{
+    salesByMonth: Array<{
+        month: number;
+        monthName: string;
+        year: number;
+        orders: number;
+        revenue: number;
+    }>;
+    topProductsMonth: Array<{
+        product_name: string;
+        total_qty: number;
+        total_revenue: number;
+    }>;
+    topProductsYear: Array<{
         product_name: string;
         total_qty: number;
         total_revenue: number;
@@ -68,11 +79,15 @@ interface AnalyticsData {
     }>;
 }
 
+type SalesView = "day" | "month";
+type TopView = "month" | "year";
+
 export function AnalyticsDashboard() {
     const [data, setData] = useState<AnalyticsData | null>(null);
     const [loading, setLoading] = useState(true);
+    const [salesView, setSalesView] = useState<SalesView>("day");
+    const [topView, setTopView] = useState<TopView>("month");
 
-    // Rango de fechas
     const today = new Date();
     const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 
@@ -112,29 +127,50 @@ export function AnalyticsDashboard() {
         );
     }
 
-    const { kpis, salesByDay, topProducts, topClients, pendingOrders, staleProducts } = data;
+    const {
+        kpis,
+        salesByDay,
+        salesByMonth,
+        topProductsMonth,
+        topProductsYear,
+        topClients,
+        pendingOrders,
+        staleProducts,
+    } = data;
 
-    // Preparar datos para los gráficos
-    const chartSalesData = salesByDay.map((d) => ({
-        date: new Date(d.date).toLocaleDateString("es-AR", {
-            day: "2-digit",
-            month: "2-digit",
-        }),
-        Ingresos: Number(d.revenue),
-        Pedidos: Number(d.orders),
-    }));
+    // Datos del gráfico de ventas
+    const chartSalesData =
+        salesView === "day"
+            ? salesByDay.map((d) => ({
+                date: new Date(d.date).toLocaleDateString("es-AR", {
+                    day: "2-digit",
+                    month: "2-digit",
+                }),
+                Ingresos: Number(d.revenue),
+                Pedidos: Number(d.orders),
+            }))
+            : salesByMonth.map((m) => ({
+                date: m.monthName,
+                Ingresos: m.revenue,
+                Pedidos: m.orders,
+            }));
 
-    const chartProductsData = topProducts.map((p) => ({
-        name: p.product_name.length > 18
-            ? p.product_name.slice(0, 18) + "..."
-            : p.product_name,
+    // Datos del gráfico de top productos
+    const currentTopProducts =
+        topView === "month" ? topProductsMonth : topProductsYear;
+
+    const chartProductsData = currentTopProducts.map((p) => ({
+        name:
+            p.product_name.length > 18
+                ? p.product_name.slice(0, 18) + "..."
+                : p.product_name,
         Vendidos: Number(p.total_qty),
         Ingresos: Number(p.total_revenue),
     }));
 
     return (
         <div className="space-y-6">
-            {/* Header con filtro de fechas */}
+            {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-text-primary">Estadísticas</h1>
@@ -203,8 +239,29 @@ export function AnalyticsDashboard() {
 
             {/* Gráficos */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Ventas por día */}
-                <Card title="Ventas por día">
+                {/* Ventas por día / mes */}
+                <Card title="Ventas">
+                    <div className="flex gap-2 mb-4">
+                        <button
+                            onClick={() => setSalesView("day")}
+                            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${salesView === "day"
+                                    ? "bg-gradient-main text-white shadow-md shadow-accent-pink/20"
+                                    : "bg-gray-100 text-text-secondary hover:bg-gray-200"
+                                }`}
+                        >
+                            Por día
+                        </button>
+                        <button
+                            onClick={() => setSalesView("month")}
+                            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${salesView === "month"
+                                    ? "bg-gradient-main text-white shadow-md shadow-accent-pink/20"
+                                    : "bg-gray-100 text-text-secondary hover:bg-gray-200"
+                                }`}
+                        >
+                            Por mes
+                        </button>
+                    </div>
+
                     {chartSalesData.length === 0 ? (
                         <div className="py-16 text-center text-text-secondary text-sm">
                             Sin ventas en este período
@@ -248,8 +305,29 @@ export function AnalyticsDashboard() {
                     )}
                 </Card>
 
-                {/* Top productos */}
+                {/* Top 5 productos mes / año */}
                 <Card title="Top 5 productos más vendidos">
+                    <div className="flex gap-2 mb-4">
+                        <button
+                            onClick={() => setTopView("month")}
+                            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${topView === "month"
+                                    ? "bg-gradient-main text-white shadow-md shadow-accent-pink/20"
+                                    : "bg-gray-100 text-text-secondary hover:bg-gray-200"
+                                }`}
+                        >
+                            Del mes
+                        </button>
+                        <button
+                            onClick={() => setTopView("year")}
+                            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${topView === "year"
+                                    ? "bg-gradient-main text-white shadow-md shadow-accent-pink/20"
+                                    : "bg-gray-100 text-text-secondary hover:bg-gray-200"
+                                }`}
+                        >
+                            Del año
+                        </button>
+                    </div>
+
                     {chartProductsData.length === 0 ? (
                         <div className="py-16 text-center text-text-secondary text-sm">
                             Sin ventas en este período
@@ -299,7 +377,7 @@ export function AnalyticsDashboard() {
                 </Card>
             </div>
 
-            {/* Tabla: Top clientes */}
+            {/* Resto igual */}
             <div className="bg-white rounded-3xl shadow-card border border-gray-100/50 overflow-hidden">
                 <div className="p-6 pb-3 flex items-center justify-between">
                     <h2 className="text-base font-semibold text-text-primary">
@@ -338,9 +416,7 @@ export function AnalyticsDashboard() {
                                     key={client.id_client}
                                     className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50"
                                 >
-                                    <td className="px-6 py-3 text-sm text-text-secondary">
-                                        {i + 1}
-                                    </td>
+                                    <td className="px-6 py-3 text-sm text-text-secondary">{i + 1}</td>
                                     <td className="px-6 py-3 text-sm font-medium text-text-primary">
                                         {client.name}
                                     </td>
@@ -360,7 +436,6 @@ export function AnalyticsDashboard() {
                 )}
             </div>
 
-            {/* Tabla: Pendientes de pago */}
             <div className="bg-white rounded-3xl shadow-card border border-gray-100/50 overflow-hidden">
                 <div className="p-6 pb-3 flex items-center justify-between">
                     <div>
@@ -434,16 +509,12 @@ export function AnalyticsDashboard() {
                 )}
             </div>
 
-            {/* Tabla: Productos sin ventas */}
             <div className="bg-white rounded-3xl shadow-card border border-gray-100/50 overflow-hidden">
                 <div className="p-6 pb-3 flex items-center justify-between">
                     <div>
                         <h2 className="text-base font-semibold text-text-primary">
                             Productos sin ventas en 60 días
                         </h2>
-                        <p className="text-xs text-text-secondary mt-1">
-                            Revisá si estos productos necesitan promoción
-                        </p>
                     </div>
                     <ExportButton
                         data={staleProducts}
@@ -509,9 +580,6 @@ export function AnalyticsDashboard() {
     );
 }
 
-// ============================================================
-// KPI CARD
-// ============================================================
 function KPICard({
     icon,
     label,

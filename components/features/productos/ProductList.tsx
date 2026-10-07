@@ -21,13 +21,26 @@ interface ProductWithVariants extends Product {
     variants?: ProductVariant[];
 }
 
+const STORAGE_KEY = "catalogo_view_mode";
+
 export function ProductList() {
     const [products, setProducts] = useState<ProductWithVariants[]>([]);
     const [categories, setCategories] = useState<Category[]>([]);
     const [search, setSearch] = useState("");
     const [categoryFilter, setCategoryFilter] = useState("");
     const [loading, setLoading] = useState(true);
-    const [viewMode, setViewMode] = useState<ViewMode>("card");
+
+    // Inicializar desde localStorage directamente (SSR-safe)
+    const [viewMode, setViewMode] = useState<ViewMode>(() => {
+        if (typeof window === "undefined") return "card";
+        const saved = localStorage.getItem(STORAGE_KEY);
+        return saved === "list" ? "list" : "card";
+    });
+
+    // Guardar cuando cambia
+    useEffect(() => {
+        localStorage.setItem(STORAGE_KEY, viewMode);
+    }, [viewMode]);
 
     async function loadProducts(query = "", categoryId = "") {
         setLoading(true);
@@ -172,10 +185,7 @@ export function ProductList() {
                     </p>
                 </div>
             ) : viewMode === "card" ? (
-                <CardView
-                    products={products}
-                    onDelete={handleDelete}
-                />
+                <CardView products={products} onDelete={handleDelete} />
             ) : (
                 <ListView products={products} onDelete={handleDelete} />
             )}
@@ -229,7 +239,6 @@ function CardView({
                         )}
                     </div>
 
-                    {/* Variantes */}
                     {product.variants && product.variants.length > 0 && (
                         <div className="mb-3 pt-3 border-t border-gray-100">
                             <div className="flex items-center gap-1.5 mb-1.5">

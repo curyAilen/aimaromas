@@ -14,7 +14,6 @@ export async function GET(req: NextRequest) {
         const from = searchParams.get("from") || "";
         const to = searchParams.get("to") || "";
 
-        // Rango de fechas por defecto: este mes
         const today = new Date();
         const defaultFrom = new Date(today.getFullYear(), today.getMonth(), 1);
         const defaultTo = today;
@@ -23,7 +22,7 @@ export async function GET(req: NextRequest) {
         const dateTo = to || defaultTo.toISOString().slice(0, 10);
 
         // ============================================================
-        // 1. KPIs PRINCIPALES
+        // KPIs PRINCIPALES
         // ============================================================
         const [kpiRows] = await pool.query<RowDataPacket[]>(
             `SELECT 
@@ -45,7 +44,6 @@ export async function GET(req: NextRequest) {
             unique_clients: 0,
         };
 
-        // Clientes nuevos del período
         const [newClientsRows] = await pool.query<RowDataPacket[]>(
             `SELECT COUNT(*) AS count FROM clients
        WHERE DATE(createdAt) >= ? AND DATE(createdAt) <= ?`,
@@ -53,7 +51,6 @@ export async function GET(req: NextRequest) {
         );
         const newClients = newClientsRows[0]?.count || 0;
 
-        // Pendiente de cobro (pedidos no pagados, sin importar el rango)
         const [pendingRows] = await pool.query<RowDataPacket[]>(
             `SELECT 
         COUNT(*) AS count,
@@ -64,7 +61,7 @@ export async function GET(req: NextRequest) {
         const pendingPayment = pendingRows[0] || { count: 0, total: 0 };
 
         // ============================================================
-        // 2. VENTAS POR DÍA (para gráfico de línea)
+        // VENTAS POR DÍA (rango seleccionado)
         // ============================================================
         const [salesByDay] = await pool.query<RowDataPacket[]>(
             `SELECT 
@@ -81,9 +78,45 @@ export async function GET(req: NextRequest) {
         );
 
         // ============================================================
-        // 3. PRODUCTOS MÁS VENDIDOS (top 5)
+        // VENTAS POR MES (año actual - 12 meses)
         // ============================================================
-        const [topProducts] = await pool.query<RowDataPacket[]>(
+        const currentYear = today.getFullYear();
+        const [salesByMonth] = await pool.query<RowDataPacket[]>(
+            `SELECT 
+        MONTH(createdAt) AS month,
+        YEAR(createdAt) AS year,
+        COUNT(*) AS orders,
+        COALESCE(SUM(total), 0) AS revenue
+       FROM orders
+       WHERE status != 'cancelled'
+         AND YEAR(createdAt) = ?
+       GROUP BY YEAR(createdAt), MONTH(createdAt)
+       ORDER BY month ASC`,
+            [currentYear]
+        );
+
+        // Completar los meses sin ventas
+        const monthNames = [
+            "Ene", "Feb", "Mar", "Abr", "May", "Jun",
+            "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
+        ];
+        const salesByMonthComplete = monthNames.map((name, i) => {
+            const found = salesByMonth.find(
+                (m) => Number(m.month) === i + 1
+            );
+            return {
+                month: i + 1,
+                monthName: name,
+                year: currentYear,
+                orders: found ? Number(found.orders) : 0,
+                revenue: found ? Number(found.revenue) : 0,
+            };
+        });
+
+        // ============================================================
+        // TOP 5 PRODUCTOS DEL MES
+        // ============================================================
+        const [topProductsMonth] = await pool.query<RowDataPacket[]>(
             `SELECT 
         oi.product_name,
         SUM(oi.quantity) AS total_qty,
@@ -100,7 +133,25 @@ export async function GET(req: NextRequest) {
         );
 
         // ============================================================
-        // 4. TOP 10 CLIENTES (por monto total)
+        // TOP 5 PRODUCTOS DEL AÑO
+        // ============================================================
+        const [topProductsYear] = await pool.query<RowDataPacket[]>(
+            `SELECT 
+        oi.product_name,
+        SUM(oi.quantity) AS total_qty,
+        COALESCE(SUM(oi.subtotal), 0) AS total_revenue
+       FROM order_items oi
+       INNER JOIN orders o ON o.id_order = oi.id_order
+       WHERE o.status != 'cancelled'
+         AND YEAR(o.createdAt) = ?
+       GROUP BY oi.product_name
+       ORDER BY total_qty DESC
+       LIMIT 5`,
+            [currentYear]
+        );
+
+        // ============================================================
+        // TOP 10 CLIENTES
         // ============================================================
         const [topClients] = await pool.query<RowDataPacket[]>(
             `SELECT 
@@ -122,7 +173,7 @@ export async function GET(req: NextRequest) {
         );
 
         // ============================================================
-        // 5. PEDIDOS PENDIENTES DE PAGO
+        // PEDIDOS PENDIENTES DE PAGO
         // ============================================================
         const [pendingOrders] = await pool.query<RowDataPacket[]>(
             `SELECT 
@@ -139,7 +190,7 @@ export async function GET(req: NextRequest) {
         );
 
         // ============================================================
-        // 6. PRODUCTOS SIN VENTAS EN LOS ÚLTIMOS 60 DÍAS
+        // PRODUCTOS SIN VENTAS EN 60 DÍAS
         // ============================================================
         const [staleProducts] = await pool.query<RowDataPacket[]>(
             `SELECT 
@@ -153,27 +204,27 @@ export async function GET(req: NextRequest) {
           SELECT MAX(o.createdAt)
           FROM order_items oi
           INNER JOIN orders o ON o.id_order = oi.id_order
-          WHERE oi.id_product = p.id_product
-            AND o.status != 'cancelled'
+          WHERE oi.id_product = p.id_product AND o.status != 'cancelled'
         ) AS last_sale
        FROM products p
        INNER JOIN categories c ON c.id_category = p.id_category
        WHERE p.active = 1
          AND p.stock_status != 'discontinued'
          AND (
-           SELECT MAX(o.createdAt)
-           FROM order_items oi
-           INNER JOIN orders o ON o.id_order = oi.id_order
-           WHERE oi.id_product = p.id_product
-             AND o.status != 'cancelled'
-         ) IS NULL
-         OR (
-           SELECT MAX(o.createdAt)
-           FROM order_items oi
-           INNER JOIN orders o ON o.id_order = oi.id_order
-           WHERE oi.id_product = p.id_product
-             AND o.status != 'cancelled'
-         ) < DATE_SUB(NOW(), INTERVAL 60 DAY)
+           (
+             SELECT MAX(o.createdAt)
+             FROM order_items oi
+             INNER JOIN orders o ON o.id_order = oi.id_order
+             WHERE oi.id_product = p.id_product AND o.status != 'cancelled'
+           ) IS NULL
+           OR
+           (
+             SELECT MAX(o.createdAt)
+             FROM order_items oi
+             INNER JOIN orders o ON o.id_order = oi.id_order
+             WHERE oi.id_product = p.id_product AND o.status != 'cancelled'
+           ) < DATE_SUB(NOW(), INTERVAL 60 DAY)
+         )
        ORDER BY last_sale ASC`
         );
 
@@ -189,7 +240,9 @@ export async function GET(req: NextRequest) {
                 pending_total: Number(pendingPayment.total),
             },
             salesByDay,
-            topProducts,
+            salesByMonth: salesByMonthComplete,
+            topProductsMonth,
+            topProductsYear,
             topClients,
             pendingOrders,
             staleProducts,

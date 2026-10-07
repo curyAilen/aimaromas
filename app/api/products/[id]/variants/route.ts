@@ -18,10 +18,10 @@ export async function GET(req: NextRequest, { params }: Params) {
         const { id } = await params;
 
         const [rows] = await pool.query<RowDataPacket[]>(
-            `SELECT id_variant, id_product, scent, sku, active, createdAt, updatedAt
-       FROM product_variants
-       WHERE id_product = ?
-       ORDER BY scent ASC`,
+            `SELECT id_variant, id_product, scent, active, createdAt, updatedAt
+ FROM product_variants
+ WHERE id_product = ?
+ ORDER BY scent ASC`,
             [id]
         );
 

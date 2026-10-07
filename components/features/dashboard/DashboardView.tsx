@@ -10,8 +10,22 @@ import {
     Trophy,
     ArrowUpRight,
     Wallet,
+    Crown,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/whatsapp";
+
+interface TopProduct {
+    product_name: string;
+    variant_scent: string | null;
+    total_qty: number;
+}
+
+interface Comprador {
+    id_client: number;
+    name: string;
+    order_count: number;
+    total_spent: string;
+}
 
 interface DashboardData {
     ventas: {
@@ -21,24 +35,18 @@ interface DashboardData {
         orders_count: number;
         clientes: number;
     };
-    pendientes: {
-        count: number;
-        total: number;
-    };
+    pendientes: { count: number; total: number };
+    compradorMes: Comprador | null;
+    compradorAnio: Comprador | null;
     birthdays: Array<{
         id_client: number;
         name: string;
-        phone: string;
         birthday: string;
         days_until: number;
         next_birthday: string;
     }>;
-    topProduct: {
-        product_name: string;
-        variant_scent: string | null;
-        total_qty: number;
-        order_count: number;
-    } | null;
+    topAroma: { mes: TopProduct | null; anio: TopProduct | null };
+    topJabon: { mes: TopProduct | null; anio: TopProduct | null };
 }
 
 export function DashboardView() {
@@ -62,24 +70,18 @@ export function DashboardView() {
 
     if (loading || !data) {
         return (
-            <div className="space-y-6">
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    {[...Array(3)].map((_, i) => (
-                        <div
-                            key={i}
-                            className="bg-white rounded-3xl p-6 h-48 animate-pulse"
-                        />
-                    ))}
-                </div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {[...Array(3)].map((_, i) => (
+                    <div key={i} className="bg-white rounded-3xl p-6 h-48 animate-pulse" />
+                ))}
             </div>
         );
     }
 
-    const { ventas, pendientes, birthdays, topProduct } = data;
+    const { ventas, pendientes, compradorMes, compradorAnio, birthdays, topAroma, topJabon } = data;
 
     return (
         <div className="space-y-6">
-            {/* Header */}
             <div>
                 <h1 className="text-2xl font-bold text-text-primary">Dashboard</h1>
                 <p className="text-sm text-text-secondary mt-1">
@@ -87,7 +89,7 @@ export function DashboardView() {
                 </p>
             </div>
 
-            {/* Fila 1: 3 cards */}
+            {/* FILA 1: Ventas + Pendientes + Comprador N°1 */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* CARD 1: Ventas Mensuales */}
                 <div className="bg-gradient-soft rounded-3xl p-6 shadow-card">
@@ -186,56 +188,91 @@ export function DashboardView() {
                     </div>
                 </div>
 
-                {/* CARD 5: Producto Más Vendido */}
+                {/* CARD 3: Comprador N°1 */}
                 <div className="bg-white rounded-3xl p-6 shadow-card border border-gray-100/50 flex flex-col">
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-lg bg-accent-pink/10 flex items-center justify-center">
-                                <Trophy className="w-4 h-4 text-accent-pink" />
-                            </div>
-                            <h2 className="text-sm font-semibold text-text-primary">
-                                Producto Más Vendido
-                            </h2>
+                    <div className="flex items-center gap-2 mb-4">
+                        <div className="w-8 h-8 rounded-lg bg-yellow-50 flex items-center justify-center">
+                            <Crown className="w-4 h-4 text-yellow-600" />
                         </div>
+                        <h2 className="text-sm font-semibold text-text-primary">
+                            Comprador N°1
+                        </h2>
                     </div>
 
-                    {topProduct ? (
-                        <div className="flex-1 flex flex-col justify-center text-center">
-                            <p className="text-[10px] text-text-secondary uppercase tracking-wide mb-2">
-                                🏆 Top del mes
+                    <div className="flex-1 space-y-4">
+                        <div>
+                            <p className="text-[10px] text-text-secondary uppercase tracking-wide mb-1">
+                                🏆 Del mes
                             </p>
-                            <p className="text-lg font-bold text-text-primary leading-tight">
-                                {topProduct.product_name}
-                            </p>
-                            {topProduct.variant_scent && (
-                                <p className="text-sm text-accent-pink mt-1">
-                                    {topProduct.variant_scent}
-                                </p>
+                            {compradorMes ? (
+                                <Link
+                                    href={`/admin/clientes/${compradorMes.id_client}`}
+                                    className="block hover:opacity-80 transition-opacity"
+                                >
+                                    <p className="text-sm font-bold text-text-primary">
+                                        {compradorMes.name}
+                                    </p>
+                                    <p className="text-xs text-text-secondary mt-0.5">
+                                        {compradorMes.order_count} pedido
+                                        {compradorMes.order_count !== 1 ? "s" : ""}
+                                    </p>
+                                    <p className="text-lg font-bold text-accent-pink mt-1">
+                                        {formatCurrency(compradorMes.total_spent)}
+                                    </p>
+                                </Link>
+                            ) : (
+                                <p className="text-xs text-text-secondary">Sin datos</p>
                             )}
-                            <p className="text-4xl font-bold text-accent-pink mt-4">
-                                {topProduct.total_qty}
-                            </p>
-                            <p className="text-xs text-text-secondary mt-1">
-                                unidades vendidas
-                            </p>
-                            <p className="text-[10px] text-text-secondary mt-2">
-                                en {topProduct.order_count} pedido
-                                {topProduct.order_count !== 1 ? "s" : ""}
-                            </p>
                         </div>
-                    ) : (
-                        <div className="flex-1 flex items-center justify-center">
-                            <p className="text-sm text-text-secondary">
-                                Sin ventas registradas
+
+                        <div className="pt-4 border-t border-gray-100">
+                            <p className="text-[10px] text-text-secondary uppercase tracking-wide mb-1">
+                                📅 Del año
                             </p>
+                            {compradorAnio ? (
+                                <Link
+                                    href={`/admin/clientes/${compradorAnio.id_client}`}
+                                    className="block hover:opacity-80 transition-opacity"
+                                >
+                                    <p className="text-sm font-bold text-text-primary">
+                                        {compradorAnio.name}
+                                    </p>
+                                    <p className="text-xs text-text-secondary mt-0.5">
+                                        {compradorAnio.order_count} pedido
+                                        {compradorAnio.order_count !== 1 ? "s" : ""}
+                                    </p>
+                                    <p className="text-lg font-bold text-accent-pink mt-1">
+                                        {formatCurrency(compradorAnio.total_spent)}
+                                    </p>
+                                </Link>
+                            ) : (
+                                <p className="text-xs text-text-secondary">Sin datos</p>
+                            )}
                         </div>
-                    )}
+                    </div>
                 </div>
             </div>
 
-            {/* Fila 2: 2 cards */}
+            {/* FILA 2: Top Aromas + Top Jabones */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* CARD 3: Próximos Cumpleaños */}
+                <TopProductCard
+                    title="Top Producto — Aromas"
+                    emoji="🕯️"
+                    mes={topAroma.mes}
+                    anio={topAroma.anio}
+                    color="pink"
+                />
+                <TopProductCard
+                    title="Top Producto — Jabones"
+                    emoji="🧼"
+                    mes={topJabon.mes}
+                    anio={topJabon.anio}
+                    color="purple"
+                />
+            </div>
+
+            {/* FILA 3: Cumpleaños (4 por fila) + Fechas Importantes */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="bg-white rounded-3xl p-6 shadow-card border border-gray-100/50">
                     <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-2">
@@ -255,20 +292,18 @@ export function DashboardView() {
                     </div>
 
                     {birthdays.length === 0 ? (
-                        <div className="py-8 text-center">
-                            <p className="text-sm text-text-secondary">
-                                No hay cumpleaños cargados
-                            </p>
+                        <div className="py-8 text-center text-sm text-text-secondary">
+                            No hay cumpleaños cargados
                         </div>
                     ) : (
-                        <div className="space-y-3">
-                            {birthdays.map((b) => (
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            {birthdays.slice(0, 4).map((b) => (
                                 <Link
                                     key={b.id_client}
                                     href={`/admin/clientes/${b.id_client}`}
-                                    className="flex items-center gap-3 p-3 rounded-2xl hover:bg-gray-50 transition-colors"
+                                    className="flex flex-col items-center text-center p-3 rounded-2xl hover:bg-gray-50 transition-colors"
                                 >
-                                    <div className="w-10 h-10 rounded-full bg-gradient-main flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                                    <div className="w-12 h-12 rounded-full bg-gradient-main flex items-center justify-center text-white text-sm font-bold mb-2">
                                         {b.name
                                             .split(" ")
                                             .map((n) => n[0])
@@ -276,19 +311,17 @@ export function DashboardView() {
                                             .join("")
                                             .toUpperCase()}
                                     </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium text-text-primary truncate">
-                                            {b.name}
-                                        </p>
-                                        <p className="text-xs text-text-secondary">
-                                            {new Date(b.next_birthday).toLocaleDateString("es-AR", {
-                                                day: "2-digit",
-                                                month: "long",
-                                            })}
-                                        </p>
-                                    </div>
+                                    <p className="text-xs font-medium text-text-primary line-clamp-2 leading-tight">
+                                        {b.name}
+                                    </p>
+                                    <p className="text-[10px] text-text-secondary mt-1">
+                                        {new Date(b.next_birthday).toLocaleDateString("es-AR", {
+                                            day: "2-digit",
+                                            month: "short",
+                                        })}
+                                    </p>
                                     <span
-                                        className={`text-[10px] font-medium px-2 py-1 rounded-full whitespace-nowrap ${b.days_until === 0
+                                        className={`text-[9px] font-medium mt-1.5 px-2 py-0.5 rounded-full ${b.days_until === 0
                                                 ? "bg-accent-pink text-white"
                                                 : b.days_until <= 7
                                                     ? "bg-orange-100 text-orange-700"
@@ -299,7 +332,7 @@ export function DashboardView() {
                                             ? "HOY 🎂"
                                             : b.days_until === 1
                                                 ? "Mañana"
-                                                : `En ${b.days_until} días`}
+                                                : `${b.days_until}d`}
                                     </span>
                                 </Link>
                             ))}
@@ -307,7 +340,7 @@ export function DashboardView() {
                     )}
                 </div>
 
-                {/* CARD 4: Fechas Importantes */}
+                {/* Fechas Importantes */}
                 <div className="bg-white rounded-3xl p-6 shadow-card border border-gray-100/50">
                     <div className="flex items-center gap-2 mb-4">
                         <div className="w-8 h-8 rounded-lg bg-accent-purple/10 flex items-center justify-center">
@@ -317,8 +350,92 @@ export function DashboardView() {
                             Fechas Importantes (CABA)
                         </h2>
                     </div>
-
                     <FechasImportantes />
+                </div>
+            </div>
+        </div>
+    );
+}
+
+/* ============================================================
+   TOP PRODUCT CARD
+   ============================================================ */
+function TopProductCard({
+    title,
+    emoji,
+    mes,
+    anio,
+    color,
+}: {
+    title: string;
+    emoji: string;
+    mes: TopProduct | null;
+    anio: TopProduct | null;
+    color: "pink" | "purple";
+}) {
+    const colorClass =
+        color === "pink" ? "text-accent-pink" : "text-accent-purple";
+
+    return (
+        <div className="bg-white rounded-3xl p-6 shadow-card border border-gray-100/50">
+            <div className="flex items-center gap-2 mb-4">
+                <div className={`w-8 h-8 rounded-lg bg-gradient-soft flex items-center justify-center text-base`}>
+                    {emoji}
+                </div>
+                <h2 className="text-sm font-semibold text-text-primary">{title}</h2>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+                <div>
+                    <p className="text-[10px] text-text-secondary uppercase tracking-wide mb-1">
+                        Del mes
+                    </p>
+                    {mes ? (
+                        <>
+                            <p className="text-sm font-bold text-text-primary leading-tight">
+                                {mes.product_name}
+                            </p>
+                            {mes.variant_scent && (
+                                <p className={`text-xs ${colorClass} mt-0.5`}>
+                                    {mes.variant_scent}
+                                </p>
+                            )}
+                            <p className={`text-2xl font-bold ${colorClass} mt-2`}>
+                                {mes.total_qty}
+                            </p>
+                            <p className="text-[10px] text-text-secondary">
+                                unidades vendidas
+                            </p>
+                        </>
+                    ) : (
+                        <p className="text-xs text-text-secondary">Sin ventas</p>
+                    )}
+                </div>
+
+                <div className="border-l border-gray-100 pl-4">
+                    <p className="text-[10px] text-text-secondary uppercase tracking-wide mb-1">
+                        Del año
+                    </p>
+                    {anio ? (
+                        <>
+                            <p className="text-sm font-bold text-text-primary leading-tight">
+                                {anio.product_name}
+                            </p>
+                            {anio.variant_scent && (
+                                <p className={`text-xs ${colorClass} mt-0.5`}>
+                                    {anio.variant_scent}
+                                </p>
+                            )}
+                            <p className={`text-2xl font-bold ${colorClass} mt-2`}>
+                                {anio.total_qty}
+                            </p>
+                            <p className="text-[10px] text-text-secondary">
+                                unidades vendidas
+                            </p>
+                        </>
+                    ) : (
+                        <p className="text-xs text-text-secondary">Sin ventas</p>
+                    )}
                 </div>
             </div>
         </div>
@@ -329,7 +446,6 @@ export function DashboardView() {
    FECHAS IMPORTANTES
    ============================================================ */
 function FechasImportantes() {
-    // Fechas fijas del año (mes es 0-indexed: 0 = enero)
     const fechas = [
         { dia: 1, mes: 0, nombre: "Año Nuevo" },
         { dia: 14, mes: 1, nombre: "San Valentín" },
@@ -357,9 +473,7 @@ function FechasImportantes() {
     const upcoming = fechas
         .map((f) => {
             const nextDate = new Date(today.getFullYear(), f.mes, f.dia);
-            if (nextDate < today) {
-                nextDate.setFullYear(today.getFullYear() + 1);
-            }
+            if (nextDate < today) nextDate.setFullYear(today.getFullYear() + 1);
             const daysUntil = Math.ceil(
                 (nextDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
             );

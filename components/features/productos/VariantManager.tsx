@@ -1,13 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Trash2, Tag, Loader2 } from "lucide-react";
+import { Plus, Trash2, Tag, Loader2, Search, X } from "lucide-react";
 
 interface Variant {
     id_variant: number;
     id_product: number;
     scent: string;
-    sku: string | null;
     active: number;
     createdAt: string;
     updatedAt: string;
@@ -19,10 +18,13 @@ interface VariantManagerProps {
 
 export function VariantManager({ productId }: VariantManagerProps) {
     const [variants, setVariants] = useState<Variant[]>([]);
+    const [availableScents, setAvailableScents] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
     const [adding, setAdding] = useState(false);
-    const [newScent, setNewScent] = useState("");
     const [error, setError] = useState("");
+    const [showPicker, setShowPicker] = useState(false);
+    const [search, setSearch] = useState("");
+    const [newScent, setNewScent] = useState("");
 
     async function loadVariants() {
         try {
@@ -36,13 +38,23 @@ export function VariantManager({ productId }: VariantManagerProps) {
         }
     }
 
+    async function loadScents() {
+        try {
+            const res = await fetch("/api/scents");
+            const data = await res.json();
+            setAvailableScents(data.scents || []);
+        } catch (error) {
+            console.error(error);
+        }
+    }
+
     useEffect(() => {
         loadVariants();
+        loadScents();
     }, [productId]);
 
-    async function handleAdd(e: React.FormEvent) {
-        e.preventDefault();
-        if (!newScent.trim()) return;
+    async function addScent(scentName: string) {
+        if (!scentName.trim()) return;
 
         setAdding(true);
         setError("");
@@ -51,7 +63,7 @@ export function VariantManager({ productId }: VariantManagerProps) {
             const res = await fetch(`/api/products/${productId}/variants`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ scent: newScent.trim() }),
+                body: JSON.stringify({ scent: scentName.trim() }),
             });
 
             const data = await res.json();
@@ -62,7 +74,9 @@ export function VariantManager({ productId }: VariantManagerProps) {
                 return;
             }
 
+            setSearch("");
             setNewScent("");
+            setShowPicker(false);
             await loadVariants();
         } catch {
             setError("Error de conexión");
@@ -82,6 +96,14 @@ export function VariantManager({ productId }: VariantManagerProps) {
         }
     }
 
+    // Fragancias disponibles que NO están ya asignadas a este producto
+    const assignedScents = variants.map((v) => v.scent.toLowerCase());
+    const suggestions = availableScents.filter(
+        (s) =>
+            !assignedScents.includes(s.toLowerCase()) &&
+            s.toLowerCase().includes(search.toLowerCase())
+    );
+
     return (
         <div className="bg-white rounded-3xl shadow-card border border-gray-100/50 p-6 space-y-4">
             <div className="flex items-center gap-3">
@@ -93,7 +115,7 @@ export function VariantManager({ productId }: VariantManagerProps) {
                         Variantes por fragancia
                     </h2>
                     <p className="text-xs text-text-secondary">
-                        Agregá las fragancias disponibles para este producto
+                        Seleccioná las fragancias disponibles para este producto
                     </p>
                 </div>
             </div>
@@ -130,32 +152,102 @@ export function VariantManager({ productId }: VariantManagerProps) {
                         </p>
                     )}
 
-                    <form onSubmit={handleAdd} className="flex gap-2 pt-2">
-                        <input
-                            type="text"
-                            value={newScent}
-                            onChange={(e) => setNewScent(e.target.value)}
-                            placeholder="Ej: Lavanda Rosas, Café, Coco Vainilla..."
-                            className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-accent-pink/50 focus:ring-2 focus:ring-accent-pink/10 transition-all"
-                            disabled={adding}
-                        />
+                    {/* Botón agregar */}
+                    {!showPicker && (
                         <button
-                            type="submit"
-                            disabled={adding || !newScent.trim()}
-                            className="flex items-center gap-2 bg-gradient-main text-white rounded-xl px-4 py-2.5 text-sm font-medium hover:opacity-90 transition-all active:scale-95 disabled:opacity-50"
+                            onClick={() => setShowPicker(true)}
+                            className="flex items-center gap-2 bg-gradient-main text-white rounded-full px-5 py-2.5 text-sm font-medium hover:opacity-90 transition-all active:scale-95"
                         >
-                            {adding ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                                <Plus className="w-4 h-4" />
-                            )}
-                            Agregar
+                            <Plus className="w-4 h-4" />
+                            Agregar fragancia
                         </button>
-                    </form>
+                    )}
 
-                    {error && (
-                        <div className="bg-red-50 border border-red-100 text-red-600 text-xs rounded-xl px-4 py-2.5">
-                            {error}
+                    {/* Selector de fragancias */}
+                    {showPicker && (
+                        <div className="border border-gray-200 rounded-2xl p-4 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <p className="text-sm font-semibold text-text-primary">
+                                    Elegí una fragancia
+                                </p>
+                                <button
+                                    onClick={() => {
+                                        setShowPicker(false);
+                                        setSearch("");
+                                        setNewScent("");
+                                    }}
+                                    className="w-6 h-6 rounded-full hover:bg-gray-100 flex items-center justify-center"
+                                >
+                                    <X className="w-3.5 h-3.5 text-text-secondary" />
+                                </button>
+                            </div>
+
+                            {/* Buscador */}
+                            <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
+                                <input
+                                    type="text"
+                                    value={search}
+                                    onChange={(e) => setSearch(e.target.value)}
+                                    placeholder="Buscar fragancia..."
+                                    autoFocus
+                                    className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 text-sm outline-none focus:border-accent-pink/50"
+                                />
+                            </div>
+
+                            {/* Lista de fragancias */}
+                            <div className="max-h-48 overflow-y-auto space-y-1">
+                                {suggestions.length === 0 && search ? (
+                                    <div className="p-3 text-center">
+                                        <p className="text-xs text-text-secondary mb-2">
+                                            No existe "{search}"
+                                        </p>
+                                        <button
+                                            onClick={() => addScent(search)}
+                                            disabled={adding}
+                                            className="text-xs font-medium text-accent-pink hover:underline disabled:opacity-50"
+                                        >
+                                            + Crear "{search}" como nueva fragancia
+                                        </button>
+                                    </div>
+                                ) : suggestions.length === 0 ? (
+                                    <div className="p-3 text-center text-xs text-text-secondary">
+                                        No hay más fragancias disponibles
+                                    </div>
+                                ) : (
+                                    suggestions.map((scent) => (
+                                        <button
+                                            key={scent}
+                                            onClick={() => addScent(scent)}
+                                            disabled={adding}
+                                            className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors text-sm text-text-primary disabled:opacity-50 flex items-center justify-between group"
+                                        >
+                                            <span>{scent}</span>
+                                            <Plus className="w-3.5 h-3.5 text-text-secondary opacity-0 group-hover:opacity-100 transition-opacity" />
+                                        </button>
+                                    ))
+                                )}
+                            </div>
+
+                            {/* Crear nueva fragancia (siempre visible) */}
+                            {search && suggestions.length > 0 && (
+                                <div className="pt-2 border-t border-gray-100">
+                                    <button
+                                        onClick={() => addScent(search)}
+                                        disabled={adding}
+                                        className="text-xs font-medium text-accent-pink hover:underline disabled:opacity-50 flex items-center gap-1"
+                                    >
+                                        <Plus className="w-3 h-3" />
+                                        Crear "{search}" como nueva fragancia
+                                    </button>
+                                </div>
+                            )}
+
+                            {error && (
+                                <div className="bg-red-50 border border-red-100 text-red-600 text-xs rounded-xl px-3 py-2">
+                                    {error}
+                                </div>
+                            )}
                         </div>
                     )}
                 </>

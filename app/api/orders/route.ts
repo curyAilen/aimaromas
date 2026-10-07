@@ -14,6 +14,14 @@ export async function GET(req: NextRequest) {
         const { searchParams } = new URL(req.url);
         const search = searchParams.get("search") || "";
         const status = searchParams.get("status") || "";
+        const from = searchParams.get("from") || "";
+        const to = searchParams.get("to") || "";
+
+        // Por defecto: mes corriente
+        const today = new Date();
+        const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        const dateFrom = from || firstOfMonth.toISOString().slice(0, 10);
+        const dateTo = to || today.toISOString().slice(0, 10);
 
         let query = `
       SELECT 
@@ -24,9 +32,10 @@ export async function GET(req: NextRequest) {
       FROM orders o
       INNER JOIN clients c ON c.id_client = o.id_client
       INNER JOIN users u ON u.id_user = o.id_user
-      WHERE 1 = 1
+      WHERE DATE(o.createdAt) >= ?
+        AND DATE(o.createdAt) <= ?
     `;
-        const params: (string | number)[] = [];
+        const params: (string | number)[] = [dateFrom, dateTo];
 
         if (search) {
             query += " AND (c.name LIKE ? OR c.phone LIKE ? OR o.id_order = ?)";
@@ -43,7 +52,7 @@ export async function GET(req: NextRequest) {
 
         const [rows] = await pool.query<RowDataPacket[]>(query, params);
 
-        return NextResponse.json({ orders: rows });
+        return NextResponse.json({ orders: rows, range: { from: dateFrom, to: dateTo } });
     } catch (error) {
         console.error("Error en GET /api/orders:", error);
         return NextResponse.json(
@@ -74,13 +83,11 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // Calcular subtotal (sin envío todavía)
         const subtotal = items.reduce(
             (acc: number, item: any) => acc + item.unit_price * item.quantity,
             0
         );
 
-        // Leer el threshold de envío gratis
         const [settingsRows] = await conn.query<RowDataPacket[]>(
             "SELECT setting_value FROM settings WHERE setting_key = 'free_shipping_threshold'"
         );
@@ -95,7 +102,6 @@ export async function POST(req: NextRequest) {
             ? Number(deliveryRows[0].setting_value)
             : 5000;
 
-        // Determinar costo de envío
         let deliveryCost = 0;
         if (requires_delivery && subtotal < freeShippingThreshold) {
             deliveryCost = deliveryCostBase;
@@ -105,7 +111,6 @@ export async function POST(req: NextRequest) {
 
         await conn.beginTransaction();
 
-        // Insertar pedido
         const [orderResult] = await conn.query<ResultSetHeader>(
             `INSERT INTO orders 
        (id_client, id_user, total, delivery_cost, requires_delivery, delivery_address, status, notes, createdAt, updatedAt)
@@ -123,7 +128,6 @@ export async function POST(req: NextRequest) {
 
         const idOrder = orderResult.insertId;
 
-        // Insertar items
         for (const item of items) {
             await conn.query(
                 `INSERT INTO order_items 
