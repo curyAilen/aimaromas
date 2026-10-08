@@ -9,7 +9,7 @@ const jakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Mezo — Panel de Administración",
+  title: "AIMA Aromas | Panel de Administración",
   description: "Plataforma de gestión de pedidos, clientes y catálogo",
 };
 
