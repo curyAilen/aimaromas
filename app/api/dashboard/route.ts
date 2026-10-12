@@ -1,24 +1,28 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import type { RowDataPacket } from "mysql2";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
     try {
         const session = await getSession();
         if (!session) {
             return NextResponse.json({ error: "No autorizado" }, { status: 401 });
         }
 
-        const CATEGORIAS_AROMAS = ["velas-de-soja", "wax-melts"];
-        const CATEGORIAS_JABONES = [
-            "jabones-piel-seca",
-            "jabones-piel-grasa",
-            "jabones-piel-mixta",
-        ];
+        const { searchParams } = new URL(req.url);
+        const tag = searchParams.get("tag") || "all"; // "aromas" | "relax" | "all"
+
+        // Condición WHERE según el tag
+        let tagCondition = "";
+        if (tag === "aromas") tagCondition = " AND p.tag = 'aromas'";
+        else if (tag === "relax") tagCondition = " AND p.tag = 'relax'";
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
 
         // ============================================================
-        // CARD 1: VENTAS MENSUALES
+        // CARD 1: VENTAS MENSUALES (por tag)
         // ============================================================
         const [ventasGrupoA] = await pool.query<RowDataPacket[]>(
             `SELECT COALESCE(SUM(o.total), 0) AS total
@@ -30,10 +34,8 @@ export async function GET() {
          AND EXISTS (
            SELECT 1 FROM order_items oi
            INNER JOIN products p ON p.id_product = oi.id_product
-           INNER JOIN categories c ON c.id_category = p.id_category
-           WHERE oi.id_order = o.id_order AND c.slug IN (?)
-         )`,
-            [CATEGORIAS_AROMAS]
+           WHERE oi.id_order = o.id_order AND p.tag = 'aromas'
+         )`
         );
 
         const [ventasGrupoB] = await pool.query<RowDataPacket[]>(
@@ -43,13 +45,11 @@ export async function GET() {
          AND o.paid_at IS NOT NULL
          AND MONTH(o.paid_at) = MONTH(NOW())
          AND YEAR(o.paid_at) = YEAR(NOW())
-         AND NOT EXISTS (
+         AND EXISTS (
            SELECT 1 FROM order_items oi
            INNER JOIN products p ON p.id_product = oi.id_product
-           INNER JOIN categories c ON c.id_category = p.id_category
-           WHERE oi.id_order = o.id_order AND c.slug IN (?)
-         )`,
-            [CATEGORIAS_AROMAS]
+           WHERE oi.id_order = o.id_order AND p.tag = 'relax'
+         )`
         );
 
         const [ventasTotal] = await pool.query<RowDataPacket[]>(
@@ -87,8 +87,7 @@ export async function GET() {
         // ============================================================
         const [compradorMes] = await pool.query<RowDataPacket[]>(
             `SELECT 
-        c.id_client,
-        c.name,
+        c.id_client, c.name,
         COUNT(o.id_order) AS order_count,
         COALESCE(SUM(o.total), 0) AS total_spent
        FROM clients c
@@ -103,8 +102,7 @@ export async function GET() {
 
         const [compradorAnio] = await pool.query<RowDataPacket[]>(
             `SELECT 
-        c.id_client,
-        c.name,
+        c.id_client, c.name,
         COUNT(o.id_order) AS order_count,
         COALESCE(SUM(o.total), 0) AS total_spent
        FROM clients c
@@ -122,9 +120,6 @@ export async function GET() {
         const [birthdayRows] = await pool.query<RowDataPacket[]>(
             `SELECT id_client, name, phone, birthday FROM clients WHERE birthday IS NOT NULL`
         );
-
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
 
         const birthdays = birthdayRows
             .map((c) => {
@@ -147,9 +142,9 @@ export async function GET() {
             .slice(0, 8);
 
         // ============================================================
-        // CARD 4: PRODUCTO MÁS VENDIDO - AROMAS
+        // CARD 4: TOP PRODUCTO (según tag seleccionado)
         // ============================================================
-        const [topAromaMes] = await pool.query<RowDataPacket[]>(
+        const [topProductoMes] = await pool.query<RowDataPacket[]>(
             `SELECT 
         oi.product_name,
         oi.variant_scent,
@@ -157,18 +152,16 @@ export async function GET() {
        FROM order_items oi
        INNER JOIN orders o ON o.id_order = oi.id_order
        INNER JOIN products p ON p.id_product = oi.id_product
-       INNER JOIN categories c ON c.id_category = p.id_category
        WHERE o.status != 'cancelled'
-         AND c.slug IN (?)
+         ${tagCondition}
          AND MONTH(o.createdAt) = MONTH(NOW())
          AND YEAR(o.createdAt) = YEAR(NOW())
        GROUP BY oi.product_name, oi.variant_scent
        ORDER BY total_qty DESC
-       LIMIT 1`,
-            [CATEGORIAS_AROMAS]
+       LIMIT 1`
         );
 
-        const [topAromaAnio] = await pool.query<RowDataPacket[]>(
+        const [topProductoAnio] = await pool.query<RowDataPacket[]>(
             `SELECT 
         oi.product_name,
         oi.variant_scent,
@@ -176,57 +169,32 @@ export async function GET() {
        FROM order_items oi
        INNER JOIN orders o ON o.id_order = oi.id_order
        INNER JOIN products p ON p.id_product = oi.id_product
-       INNER JOIN categories c ON c.id_category = p.id_category
        WHERE o.status != 'cancelled'
-         AND c.slug IN (?)
+         ${tagCondition}
          AND YEAR(o.createdAt) = YEAR(NOW())
        GROUP BY oi.product_name, oi.variant_scent
        ORDER BY total_qty DESC
-       LIMIT 1`,
-            [CATEGORIAS_AROMAS]
+       LIMIT 1`
         );
 
         // ============================================================
-        // CARD 5: PRODUCTO MÁS VENDIDO - JABONES
+        // CARD 5: VENTAS POR TAG (aromas vs relax)
         // ============================================================
-        const [topJabonMes] = await pool.query<RowDataPacket[]>(
+        const [tagStats] = await pool.query<RowDataPacket[]>(
             `SELECT 
-        oi.product_name,
-        oi.variant_scent,
+        p.tag,
+        COALESCE(SUM(oi.subtotal), 0) AS total_revenue,
         SUM(oi.quantity) AS total_qty
        FROM order_items oi
        INNER JOIN orders o ON o.id_order = oi.id_order
        INNER JOIN products p ON p.id_product = oi.id_product
-       INNER JOIN categories c ON c.id_category = p.id_category
        WHERE o.status != 'cancelled'
-         AND c.slug IN (?)
-         AND MONTH(o.createdAt) = MONTH(NOW())
          AND YEAR(o.createdAt) = YEAR(NOW())
-       GROUP BY oi.product_name, oi.variant_scent
-       ORDER BY total_qty DESC
-       LIMIT 1`,
-            [CATEGORIAS_JABONES]
-        );
-
-        const [topJabonAnio] = await pool.query<RowDataPacket[]>(
-            `SELECT 
-        oi.product_name,
-        oi.variant_scent,
-        SUM(oi.quantity) AS total_qty
-       FROM order_items oi
-       INNER JOIN orders o ON o.id_order = oi.id_order
-       INNER JOIN products p ON p.id_product = oi.id_product
-       INNER JOIN categories c ON c.id_category = p.id_category
-       WHERE o.status != 'cancelled'
-         AND c.slug IN (?)
-         AND YEAR(o.createdAt) = YEAR(NOW())
-       GROUP BY oi.product_name, oi.variant_scent
-       ORDER BY total_qty DESC
-       LIMIT 1`,
-            [CATEGORIAS_JABONES]
+       GROUP BY p.tag`
         );
 
         return NextResponse.json({
+            tag,
             ventas: {
                 grupoA: Number(ventasGrupoA[0]?.total || 0),
                 grupoB: Number(ventasGrupoB[0]?.total || 0),
@@ -241,8 +209,11 @@ export async function GET() {
             compradorMes: compradorMes[0] || null,
             compradorAnio: compradorAnio[0] || null,
             birthdays,
-            topAroma: { mes: topAromaMes[0] || null, anio: topAromaAnio[0] || null },
-            topJabon: { mes: topJabonMes[0] || null, anio: topJabonAnio[0] || null },
+            topProducto: {
+                mes: topProductoMes[0] || null,
+                anio: topProductoAnio[0] || null,
+            },
+            tagStats,
         });
     } catch (error) {
         console.error("Error en GET /api/dashboard:", error);

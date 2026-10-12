@@ -11,8 +11,12 @@ import {
     ArrowUpRight,
     Wallet,
     Crown,
+    Sparkles,
+    Droplet,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/whatsapp";
+
+type TagFilter = "all" | "aromas" | "relax";
 
 interface TopProduct {
     product_name: string;
@@ -27,7 +31,14 @@ interface Comprador {
     total_spent: string;
 }
 
+interface TagStat {
+    tag: string;
+    total_revenue: string;
+    total_qty: number;
+}
+
 interface DashboardData {
+    tag: string;
     ventas: {
         grupoA: number;
         grupoB: number;
@@ -45,18 +56,20 @@ interface DashboardData {
         days_until: number;
         next_birthday: string;
     }>;
-    topAroma: { mes: TopProduct | null; anio: TopProduct | null };
-    topJabon: { mes: TopProduct | null; anio: TopProduct | null };
+    topProducto: { mes: TopProduct | null; anio: TopProduct | null };
+    tagStats: TagStat[];
 }
 
 export function DashboardView() {
     const [data, setData] = useState<DashboardData | null>(null);
     const [loading, setLoading] = useState(true);
+    const [tag, setTag] = useState<TagFilter>("all");
 
     useEffect(() => {
         async function load() {
+            setLoading(true);
             try {
-                const res = await fetch("/api/dashboard");
+                const res = await fetch(`/api/dashboard?tag=${tag}`);
                 const json = await res.json();
                 setData(json);
             } catch (error) {
@@ -66,7 +79,7 @@ export function DashboardView() {
             }
         }
         load();
-    }, []);
+    }, [tag]);
 
     if (loading || !data) {
         return (
@@ -78,18 +91,51 @@ export function DashboardView() {
         );
     }
 
-    const { ventas, pendientes, compradorMes, compradorAnio, birthdays, topAroma, topJabon } = data;
+    const { ventas, pendientes, compradorMes, compradorAnio, birthdays, topProducto } = data;
+
+    const tagLabels: Record<TagFilter, string> = {
+        all: "Todos",
+        aromas: "🕯️ Aromas",
+        relax: "🧼 Relax",
+    };
+
+    const topProductEmoji = tag === "aromas" ? "🕯️" : tag === "relax" ? "🧼" : "🏆";
+    const topProductTitle =
+        tag === "aromas"
+            ? "Top Producto — Aromas"
+            : tag === "relax"
+                ? "Top Producto — Relax"
+                : "Producto Más Vendido";
 
     return (
         <div className="space-y-6">
-            <div>
-                <h1 className="text-2xl font-bold text-text-primary">Dashboard</h1>
-                <p className="text-sm text-text-secondary mt-1">
-                    Resumen general de la operación
-                </p>
+            {/* Header + Selector de Tag */}
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                    <h1 className="text-2xl font-bold text-text-primary">Dashboard</h1>
+                    <p className="text-sm text-text-secondary mt-1">
+                        Resumen general de la operación
+                    </p>
+                </div>
+
+                {/* Selector de tag */}
+                <div className="flex items-center gap-2 bg-white rounded-full border border-gray-100 p-1">
+                    {(Object.keys(tagLabels) as TagFilter[]).map((t) => (
+                        <button
+                            key={t}
+                            onClick={() => setTag(t)}
+                            className={`px-4 py-2 rounded-full text-xs font-medium whitespace-nowrap transition-all ${tag === t
+                                    ? "bg-gradient-main text-white shadow-md shadow-accent-pink/20"
+                                    : "text-text-secondary hover:bg-gray-50"
+                                }`}
+                        >
+                            {tagLabels[t]}
+                        </button>
+                    ))}
+                </div>
             </div>
 
-            {/* FILA 1: Ventas + Pendientes + Comprador N°1 */}
+            {/* FILA 1: Ventas + Pendientes + Comprador */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* CARD 1: Ventas Mensuales */}
                 <div className="bg-gradient-soft rounded-3xl p-6 shadow-card">
@@ -109,16 +155,16 @@ export function DashboardView() {
 
                     <div className="grid grid-cols-2 gap-3 mb-3">
                         <div className="bg-white/70 rounded-2xl p-3">
-                            <p className="text-[10px] text-text-secondary uppercase tracking-wide">
-                                Velas + Wax Melts
+                            <p className="text-[10px] text-text-secondary uppercase tracking-wide flex items-center gap-1">
+                                <Sparkles className="w-3 h-3" /> Aromas
                             </p>
                             <p className="text-xl font-bold text-accent-pink mt-1 truncate">
                                 {formatCurrency(ventas.grupoA)}
                             </p>
                         </div>
                         <div className="bg-white/70 rounded-2xl p-3">
-                            <p className="text-[10px] text-text-secondary uppercase tracking-wide">
-                                Jabones + Accs.
+                            <p className="text-[10px] text-text-secondary uppercase tracking-wide flex items-center gap-1">
+                                <Droplet className="w-3 h-3" /> Relax
                             </p>
                             <p className="text-xl font-bold text-accent-purple mt-1 truncate">
                                 {formatCurrency(ventas.grupoB)}
@@ -253,25 +299,17 @@ export function DashboardView() {
                 </div>
             </div>
 
-            {/* FILA 2: Top Aromas + Top Jabones */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* FILA 2: Top Producto (mes + año) */}
+            <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
                 <TopProductCard
-                    title="Top Producto — Aromas"
-                    emoji="🕯️"
-                    mes={topAroma.mes}
-                    anio={topAroma.anio}
-                    color="pink"
-                />
-                <TopProductCard
-                    title="Top Producto — Jabones"
-                    emoji="🧼"
-                    mes={topJabon.mes}
-                    anio={topJabon.anio}
-                    color="purple"
+                    title={topProductTitle}
+                    emoji={topProductEmoji}
+                    mes={topProducto.mes}
+                    anio={topProducto.anio}
                 />
             </div>
 
-            {/* FILA 3: Cumpleaños (4 por fila) + Fechas Importantes */}
+            {/* FILA 3: Cumpleaños + Fechas Importantes */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="bg-white rounded-3xl p-6 shadow-card border border-gray-100/50">
                     <div className="flex items-center justify-between mb-4">
@@ -340,7 +378,6 @@ export function DashboardView() {
                     )}
                 </div>
 
-                {/* Fechas Importantes */}
                 <div className="bg-white rounded-3xl p-6 shadow-card border border-gray-100/50">
                     <div className="flex items-center gap-2 mb-4">
                         <div className="w-8 h-8 rounded-lg bg-accent-purple/10 flex items-center justify-center">
@@ -357,29 +394,21 @@ export function DashboardView() {
     );
 }
 
-/* ============================================================
-   TOP PRODUCT CARD
-   ============================================================ */
 function TopProductCard({
     title,
     emoji,
     mes,
     anio,
-    color,
 }: {
     title: string;
     emoji: string;
     mes: TopProduct | null;
     anio: TopProduct | null;
-    color: "pink" | "purple";
 }) {
-    const colorClass =
-        color === "pink" ? "text-accent-pink" : "text-accent-purple";
-
     return (
         <div className="bg-white rounded-3xl p-6 shadow-card border border-gray-100/50">
             <div className="flex items-center gap-2 mb-4">
-                <div className={`w-8 h-8 rounded-lg bg-gradient-soft flex items-center justify-center text-base`}>
+                <div className="w-8 h-8 rounded-lg bg-gradient-soft flex items-center justify-center text-base">
                     {emoji}
                 </div>
                 <h2 className="text-sm font-semibold text-text-primary">{title}</h2>
@@ -396,11 +425,11 @@ function TopProductCard({
                                 {mes.product_name}
                             </p>
                             {mes.variant_scent && (
-                                <p className={`text-xs ${colorClass} mt-0.5`}>
+                                <p className="text-xs text-accent-pink mt-0.5">
                                     {mes.variant_scent}
                                 </p>
                             )}
-                            <p className={`text-2xl font-bold ${colorClass} mt-2`}>
+                            <p className="text-2xl font-bold text-accent-pink mt-2">
                                 {mes.total_qty}
                             </p>
                             <p className="text-[10px] text-text-secondary">
@@ -422,11 +451,11 @@ function TopProductCard({
                                 {anio.product_name}
                             </p>
                             {anio.variant_scent && (
-                                <p className={`text-xs ${colorClass} mt-0.5`}>
+                                <p className="text-xs text-accent-pink mt-0.5">
                                     {anio.variant_scent}
                                 </p>
                             )}
-                            <p className={`text-2xl font-bold ${colorClass} mt-2`}>
+                            <p className="text-2xl font-bold text-accent-pink mt-2">
                                 {anio.total_qty}
                             </p>
                             <p className="text-[10px] text-text-secondary">
@@ -442,9 +471,6 @@ function TopProductCard({
     );
 }
 
-/* ============================================================
-   FECHAS IMPORTANTES
-   ============================================================ */
 function FechasImportantes() {
     const fechas = [
         { dia: 1, mes: 0, nombre: "Año Nuevo" },
