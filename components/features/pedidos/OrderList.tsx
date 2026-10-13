@@ -120,7 +120,6 @@ export function OrderList() {
                 </Link>
             </div>
 
-            {/* Filtro de fechas */}
             <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3">
                 <div className="flex items-center gap-2 text-xs text-text-secondary">
                     <Calendar className="w-3.5 h-3.5" />
@@ -139,7 +138,6 @@ export function OrderList() {
                 </div>
             </div>
 
-            {/* Búsqueda y filtro */}
             <div className="flex flex-col md:flex-row gap-3">
                 <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
@@ -176,11 +174,12 @@ export function OrderList() {
             ) : (
                 <div className="bg-white rounded-3xl shadow-card border border-gray-100/50 overflow-hidden">
                     <div className="overflow-x-auto">
-                        <table className="w-full min-w-[1100px]">
+                        <table className="w-full min-w-[1300px]">
                             <thead>
                                 <tr className="text-left text-xs text-text-secondary border-b border-gray-100">
                                     <th className="px-4 py-3 font-medium">#</th>
                                     <th className="px-4 py-3 font-medium">Cliente</th>
+                                    <th className="px-4 py-3 font-medium">Revendedora</th>
                                     <th className="px-4 py-3 font-medium">Fecha</th>
                                     <th className="px-4 py-3 font-medium">Total</th>
                                     <th className="px-4 py-3 font-medium">Estado</th>
@@ -190,7 +189,7 @@ export function OrderList() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {orders.map((order) => {
+                                {orders.map((order: any) => {
                                     const isCancelled = order.status === "cancelled";
                                     const isPaid = !!order.paid_at;
                                     const isDelivered = !!order.delivered_at;
@@ -213,6 +212,9 @@ export function OrderList() {
                                                     {order.client_phone}
                                                 </p>
                                             </td>
+                                            <td className="px-4 py-3 text-xs text-text-secondary">
+                                                {order.reseller_name || "—"}
+                                            </td>
                                             <td className="px-4 py-3 text-sm text-text-secondary whitespace-nowrap">
                                                 {new Date(order.createdAt).toLocaleDateString("es-AR", {
                                                     day: "2-digit",
@@ -220,8 +222,15 @@ export function OrderList() {
                                                     year: "2-digit",
                                                 })}
                                             </td>
-                                            <td className="px-4 py-3 text-sm font-bold text-accent-pink whitespace-nowrap">
-                                                {formatCurrency(order.total)}
+                                            <td className="px-4 py-3 text-right whitespace-nowrap">
+                                                <p className="text-sm font-bold text-accent-pink">
+                                                    {formatCurrency(order.total)}
+                                                </p>
+                                                {order.commission_amount > 0 && (
+                                                    <p className="text-[10px] text-accent-purple font-medium">
+                                                        Comisión: {formatCurrency(order.commission_amount)}
+                                                    </p>
+                                                )}
                                             </td>
                                             <td className="px-4 py-3">
                                                 {isCancelled ? (
@@ -266,7 +275,6 @@ export function OrderList() {
                                             </td>
                                             <td className="px-4 py-3">
                                                 <div className="flex items-center justify-end gap-1">
-                                                    {/* Marcar pagado */}
                                                     {!isCancelled && (
                                                         <button
                                                             onClick={() =>
@@ -288,7 +296,6 @@ export function OrderList() {
                                                         </button>
                                                     )}
 
-                                                    {/* Marcar entregado */}
                                                     {!isCancelled && (
                                                         <button
                                                             onClick={() =>
@@ -310,7 +317,6 @@ export function OrderList() {
                                                         </button>
                                                     )}
 
-                                                    {/* Ver detalle */}
                                                     <Link
                                                         href={`/admin/pedidos/${order.id_order}`}
                                                         className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center transition-colors"
@@ -319,7 +325,6 @@ export function OrderList() {
                                                         <Eye className="w-4 h-4 text-text-secondary" />
                                                     </Link>
 
-                                                    {/* Cancelar / Reactivar */}
                                                     {!isCancelled ? (
                                                         <button
                                                             onClick={() => {
@@ -348,7 +353,6 @@ export function OrderList() {
                                                         </button>
                                                     )}
 
-                                                    {/* Eliminar */}
                                                     <button
                                                         onClick={() => handleDelete(order.id_order)}
                                                         className="w-8 h-8 rounded-full hover:bg-red-50 flex items-center justify-center transition-colors"

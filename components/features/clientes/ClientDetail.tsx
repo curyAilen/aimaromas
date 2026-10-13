@@ -33,9 +33,14 @@ interface Order {
     id_order: number;
     total: string;
     status: string;
+    tag: string;
     createdAt: string;
     delivered_at: string | null;
     paid_at: string | null;
+    commission_amount: string | null;
+    commission_paid: number | null;
+    id_reseller: number | null;
+    reseller_name: string | null;
 }
 
 interface ClientDetailProps {
@@ -365,6 +370,7 @@ export function ClientDetail({ clientId }: ClientDetailProps) {
                             <tr className="text-left text-xs text-text-secondary border-y border-gray-100">
                                 <th className="px-6 py-3 font-medium">#</th>
                                 <th className="px-6 py-3 font-medium">Fecha</th>
+                                <th className="px-6 py-3 font-medium">Vendido por</th>
                                 <th className="px-6 py-3 font-medium">Estado</th>
                                 <th className="px-6 py-3 font-medium">Entrega</th>
                                 <th className="px-6 py-3 font-medium">Pago</th>
@@ -385,6 +391,15 @@ export function ClientDetail({ clientId }: ClientDetailProps) {
                                         </td>
                                         <td className="px-6 py-3 text-sm text-text-secondary">
                                             {new Date(order.createdAt).toLocaleDateString("es-AR")}
+                                        </td>
+                                        <td className="px-6 py-3 text-xs">
+                                            {(order as any).reseller_name ? (
+                                                <span className="text-accent-purple font-medium">
+                                                    {(order as any).reseller_name}
+                                                </span>
+                                            ) : (
+                                                <span className="text-text-secondary">—</span>
+                                            )}
                                         </td>
                                         <td className="px-6 py-3">
                                             <span

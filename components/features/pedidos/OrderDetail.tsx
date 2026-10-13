@@ -11,6 +11,7 @@ import {
     XCircle,
     MessageCircle,
     Trash2,
+    Store,
 } from "lucide-react";
 import { formatCurrency, buildOrderMessage, buildWhatsAppUrl } from "@/lib/whatsapp";
 import type { Order, OrderItem, OrderStatus } from "@/lib/types";
@@ -28,7 +29,7 @@ const statusLabels: Record<OrderStatus, { label: string; color: string }> = {
 
 export function OrderDetail({ orderId }: OrderDetailProps) {
     const router = useRouter();
-    const [order, setOrder] = useState<(Order & { items: OrderItem[] }) | null>(null);
+    const [order, setOrder] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [updating, setUpdating] = useState(false);
 
@@ -97,7 +98,7 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
         );
     }
 
-    const st = statusLabels[order.status];
+    const st = statusLabels[order.status as OrderStatus];
     const isDelivered = !!order.delivered_at;
     const isPaid = !!order.paid_at;
 
@@ -236,6 +237,72 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
                 )}
             </div>
 
+            {/* Revendedora y Comisión */}
+            {order.reseller_name && (
+                <div className="bg-white rounded-3xl shadow-card border border-gray-100/50 p-6">
+                    <h2 className="text-sm font-semibold text-text-primary mb-4 flex items-center gap-2">
+                        <Store className="w-4 h-4 text-accent-purple" />
+                        Revendedora
+                    </h2>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <p className="text-xs text-text-secondary">Vendido por</p>
+                            <p className="text-sm font-medium text-text-primary">
+                                {order.reseller_name}
+                            </p>
+                        </div>
+                        <div>
+                            <p className="text-xs text-text-secondary">
+                                Comisión ({order.commission_percent}%)
+                            </p>
+                            <p className="text-sm font-bold text-accent-purple">
+                                {formatCurrency(order.commission_amount)}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
+                        <div>
+                            <p className="text-xs text-text-secondary">Estado de comisión</p>
+                            {order.commission_paid === 1 ? (
+                                <p className="text-sm font-medium text-green-700">
+                                    ✓ Pagada el{" "}
+                                    {new Date(order.commission_paid_at).toLocaleDateString(
+                                        "es-AR"
+                                    )}
+                                </p>
+                            ) : (
+                                <p className="text-sm font-medium text-orange-600">
+                                    Pendiente de pago
+                                </p>
+                            )}
+                        </div>
+                        <button
+                            onClick={async () => {
+                                if (!confirm("¿Cambiar el estado de la comisión?")) return;
+                                await fetch(`/api/orders/${orderId}/commission`, {
+                                    method: "PUT",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({
+                                        commission_paid: order.commission_paid === 1 ? false : true,
+                                    }),
+                                });
+                                await loadOrder();
+                            }}
+                            disabled={updating}
+                            className={`text-xs font-medium px-4 py-2 rounded-full transition-colors disabled:opacity-50 ${order.commission_paid === 1
+                                ? "bg-gray-100 text-text-secondary hover:bg-gray-200"
+                                : "bg-green-500 text-white hover:bg-green-600"
+                                }`}
+                        >
+                            {order.commission_paid === 1
+                                ? "Marcar pendiente"
+                                : "Marcar pagada"}
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* Items */}
             <div className="bg-white rounded-3xl shadow-card border border-gray-100/50 overflow-hidden">
                 <div className="p-6 pb-3">
@@ -253,7 +320,7 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
                         </tr>
                     </thead>
                     <tbody>
-                        {order.items.map((item) => (
+                        {order.items.map((item: OrderItem) => (
                             <tr
                                 key={item.id_item}
                                 className="border-b border-gray-50 last:border-0"
@@ -351,7 +418,8 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
                     <p className="text-xs text-text-secondary mb-1">Pago</p>
                     {isPaid ? (
                         <p className="text-sm font-semibold text-emerald-700">
-                            Pagado el {new Date(order.paid_at!).toLocaleDateString("es-AR")}
+                            Pagado el{" "}
+                            {new Date(order.paid_at!).toLocaleDateString("es-AR")}
                         </p>
                     ) : (
                         <p className="text-sm text-text-secondary">Sin pagar</p>

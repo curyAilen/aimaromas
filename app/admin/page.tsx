@@ -1,5 +1,5 @@
-import { DashboardView } from "@/components/features/dashboard/DashboardView";
+import { redirect } from "next/navigation";
 
-export default function DashboardPage() {
-    return <DashboardView />;
+export default function AdminRootPage() {
+    redirect("/admin/select-area");
 }

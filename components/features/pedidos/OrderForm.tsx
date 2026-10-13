@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Plus, Trash2, Save, Package, Truck } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Save, Truck, Store, DollarSign } from "lucide-react";
 import Link from "next/link";
 import { formatCurrency, buildOrderMessage, buildWhatsAppUrl } from "@/lib/whatsapp";
 import type { Client, Product, OrderItemInput } from "@/lib/types";
@@ -11,6 +11,12 @@ interface Variant {
     id_variant: number;
     id_product: number;
     scent: string;
+}
+
+interface Reseller {
+    id_reseller: number;
+    name: string;
+    default_commission_percent: string;
 }
 
 interface OrderFormProps {
@@ -22,9 +28,12 @@ export function OrderForm({ preselectedClientId }: OrderFormProps) {
 
     const [clients, setClients] = useState<Client[]>([]);
     const [products, setProducts] = useState<Product[]>([]);
+    const [resellers, setResellers] = useState<Reseller[]>([]);
     const [selectedClientId, setSelectedClientId] = useState<string>(
         preselectedClientId ? String(preselectedClientId) : ""
     );
+    const [selectedResellerId, setSelectedResellerId] = useState<string>("");
+    const [commissionPercent, setCommissionPercent] = useState<string>("");
     const [requiresDelivery, setRequiresDelivery] = useState(false);
     const [deliveryAddress, setDeliveryAddress] = useState("");
     const [notes, setNotes] = useState("");
@@ -35,22 +44,24 @@ export function OrderForm({ preselectedClientId }: OrderFormProps) {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
 
-    // Cargar datos iniciales
     useEffect(() => {
         async function load() {
             try {
-                const [clientsRes, productsRes, settingsRes] = await Promise.all([
+                const [clientsRes, productsRes, settingsRes, resellersRes] = await Promise.all([
                     fetch("/api/clients"),
                     fetch("/api/products"),
                     fetch("/api/settings"),
+                    fetch("/api/resellers"),
                 ]);
 
                 const clientsData = await clientsRes.json();
                 const productsData = await productsRes.json();
                 const settingsData = await settingsRes.json();
+                const resellersData = await resellersRes.json();
 
                 setClients(clientsData.clients || []);
                 setProducts(productsData.products || []);
+                setResellers(resellersData.resellers || []);
                 setFreeShippingThreshold(
                     Number(settingsData.settings?.free_shipping_threshold) || 80000
                 );
@@ -71,7 +82,6 @@ export function OrderForm({ preselectedClientId }: OrderFormProps) {
         load();
     }, [preselectedClientId]);
 
-    // Cargar rol del usuario
     useEffect(() => {
         async function loadSession() {
             try {
@@ -87,12 +97,26 @@ export function OrderForm({ preselectedClientId }: OrderFormProps) {
         loadSession();
     }, []);
 
-    // Cuando cambia el cliente y tiene dirección, pre-cargarla
     useEffect(() => {
         if (!selectedClientId) return;
         const client = clients.find((c) => c.id_client === Number(selectedClientId));
         if (client?.address) setDeliveryAddress(client.address);
     }, [selectedClientId, clients]);
+
+    useEffect(() => {
+        if (!selectedResellerId) {
+            setCommissionPercent("");
+            return;
+        }
+        const reseller = resellers.find(
+            (r) => r.id_reseller === Number(selectedResellerId)
+        );
+        if (reseller) {
+            setCommissionPercent(
+                Number(reseller.default_commission_percent).toFixed(2)
+            );
+        }
+    }, [selectedResellerId, resellers]);
 
     function addItem(product: Product) {
         const newItem: OrderItemInput = {
@@ -140,6 +164,11 @@ export function OrderForm({ preselectedClientId }: OrderFormProps) {
     const total = subtotal + deliveryCost;
     const qualifiesForFreeShipping = subtotal >= freeShippingThreshold;
 
+    const commissionAmount =
+        selectedResellerId && commissionPercent
+            ? (subtotal * Number(commissionPercent)) / 100
+            : 0;
+
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
         setError("");
@@ -167,6 +196,10 @@ export function OrderForm({ preselectedClientId }: OrderFormProps) {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     id_client: Number(selectedClientId),
+                    id_reseller: selectedResellerId ? Number(selectedResellerId) : null,
+                    commission_percent: commissionPercent
+                        ? Number(commissionPercent)
+                        : null,
                     requires_delivery: requiresDelivery,
                     delivery_address: deliveryAddress,
                     notes,
@@ -182,7 +215,6 @@ export function OrderForm({ preselectedClientId }: OrderFormProps) {
                 return;
             }
 
-            // Solo abrir WhatsApp si NO es admin
             if (!isAdmin) {
                 const detailRes = await fetch(`/api/orders/${data.id_order}`);
                 const detailData = await detailRes.json();
@@ -197,7 +229,6 @@ export function OrderForm({ preselectedClientId }: OrderFormProps) {
                 }
             }
 
-            // Admin → detalle del pedido. Cliente → listado.
             if (isAdmin) {
                 router.push(`/admin/pedidos/${data.id_order}`);
             } else {
@@ -211,7 +242,7 @@ export function OrderForm({ preselectedClientId }: OrderFormProps) {
     }
 
     return (
-        <div className="space-y-6 max-w-5x mx-auto">
+        <div className="space-y-6 max-w-5xl mx-auto">
             <div className="flex items-center gap-4">
                 <Link
                     href="/admin/pedidos"
@@ -245,6 +276,70 @@ export function OrderForm({ preselectedClientId }: OrderFormProps) {
                             </option>
                         ))}
                     </select>
+                </div>
+
+                <div className="bg-white rounded-3xl shadow-card border border-gray-100/50 p-6 space-y-4">
+                    <div className="flex items-center gap-2">
+                        <Store className="w-4 h-4 text-accent-purple" />
+                        <h2 className="text-sm font-semibold text-text-primary">
+                            Revendedora (opcional)
+                        </h2>
+                    </div>
+                    <p className="text-xs text-text-secondary -mt-2">
+                        Si este pedido lo vendió una revendedora, seleccionala acá.
+                    </p>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-xs font-medium text-text-secondary block mb-1.5">
+                                Revendedora
+                            </label>
+                            <select
+                                value={selectedResellerId}
+                                onChange={(e) => setSelectedResellerId(e.target.value)}
+                                className="input"
+                            >
+                                <option value="">— Sin revendedora —</option>
+                                {resellers.map((r) => (
+                                    <option key={r.id_reseller} value={r.id_reseller}>
+                                        {r.name}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {selectedResellerId && (
+                            <div>
+                                <label className="text-xs font-medium text-text-secondary block mb-1.5">
+                                    Comisión (%)
+                                </label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    step="0.01"
+                                    value={commissionPercent}
+                                    onChange={(e) => setCommissionPercent(e.target.value)}
+                                    className="input"
+                                    placeholder="20"
+                                />
+                            </div>
+                        )}
+                    </div>
+
+                    {selectedResellerId && commissionAmount > 0 && (
+                        <div className="bg-accent-purple/10 border border-accent-purple/20 rounded-2xl p-4 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <DollarSign className="w-4 h-4 text-accent-purple" />
+                                <span className="text-sm font-medium text-text-primary">
+                                    Comisión a pagar
+                                </span>
+                            </div>
+                            <span className="text-xl font-bold text-accent-purple">
+                                {formatCurrency(commissionAmount)}
+                            </span>
+                        </div>
+                    )}
                 </div>
 
                 <div className="bg-white rounded-3xl shadow-card border border-gray-100/50 p-6 space-y-4">
@@ -309,8 +404,8 @@ export function OrderForm({ preselectedClientId }: OrderFormProps) {
                             />
                             <div
                                 className={`text-xs p-3 rounded-xl ${qualifiesForFreeShipping
-                                    ? "bg-green-50 text-green-700 border border-green-100"
-                                    : "bg-yellow-50 text-yellow-700 border border-yellow-100"
+                                        ? "bg-green-50 text-green-700 border border-green-100"
+                                        : "bg-yellow-50 text-yellow-700 border border-yellow-100"
                                     }`}
                             >
                                 {qualifiesForFreeShipping ? (
@@ -355,6 +450,16 @@ export function OrderForm({ preselectedClientId }: OrderFormProps) {
                             <span className="text-text-secondary">Envío</span>
                             <span className="font-semibold text-text-primary">
                                 {deliveryCost > 0 ? formatCurrency(deliveryCost) : "Gratis"}
+                            </span>
+                        </div>
+                    )}
+                    {selectedResellerId && commissionAmount > 0 && (
+                        <div className="flex items-center justify-between text-sm">
+                            <span className="text-text-secondary">
+                                Comisión ({Number(commissionPercent).toFixed(0)}%)
+                            </span>
+                            <span className="font-semibold text-accent-purple">
+                                {formatCurrency(commissionAmount)}
                             </span>
                         </div>
                     )}
@@ -416,9 +521,6 @@ export function OrderForm({ preselectedClientId }: OrderFormProps) {
     );
 }
 
-/* ============================================================
-   SELECTOR DE PRODUCTOS
-   ============================================================ */
 function ProductPicker({
     products,
     onAdd,
@@ -497,9 +599,6 @@ function ProductPicker({
     );
 }
 
-/* ============================================================
-   FILA DE ITEM
-   ============================================================ */
 function OrderItemRow({
     item,
     onRemove,

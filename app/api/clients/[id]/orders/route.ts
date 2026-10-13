@@ -18,15 +18,21 @@ export async function GET(req: NextRequest, { params }: Params) {
 
         const [rows] = await pool.query<RowDataPacket[]>(
             `SELECT 
-        id_order, 
-        total, 
-        status, 
-        createdAt, 
-        delivered_at, 
-        paid_at
-       FROM orders
-       WHERE id_client = ?
-       ORDER BY createdAt DESC`,
+        o.id_order, 
+        o.total, 
+        o.status, 
+        o.tag,
+        o.createdAt, 
+        o.delivered_at, 
+        o.paid_at,
+        o.commission_amount,
+        o.commission_paid,
+        o.id_reseller,
+        r.name AS reseller_name
+       FROM orders o
+       LEFT JOIN resellers r ON r.id_reseller = o.id_reseller
+       WHERE o.id_client = ?
+       ORDER BY o.createdAt DESC`,
             [id]
         );
 
