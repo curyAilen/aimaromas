@@ -59,7 +59,6 @@ export async function proxy(req: NextRequest) {
         const session = await verifyToken(token);
         if (!session) {
             const res = NextResponse.redirect(new URL("/admin/login", req.url));
-            res.delete?.("mezo_session"); // por compatibilidad
             res.cookies.delete("mezo_session");
             return res;
         }
