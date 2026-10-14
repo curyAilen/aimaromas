@@ -25,6 +25,8 @@ export function buildOrderMessage(
         lines.push(`📍 *Dirección:* ${order.delivery_address}`);
     }
 
+
+
     lines.push("");
     lines.push("📦 *Productos:*");
 

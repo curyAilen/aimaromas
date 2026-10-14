@@ -24,4 +24,4 @@ if (session_status() === PHP_SESSION_NONE) {
             <li><a href="login.php">Iniciar Sesión</a></li>
         <?php endif; ?>
     </ul>
-</nav>
+</nav> 

@@ -18,6 +18,8 @@ function createPool() {
     });
 }
 
+
+
 export const pool = globalForDb.pool ?? createPool();
 
 if (process.env.NODE_ENV !== "production") {

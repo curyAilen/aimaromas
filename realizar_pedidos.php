@@ -31,7 +31,7 @@ $query_productos = mysqli_query($conexion, "SELECT nombre, stock FROM products W
             --bg-crema: #FDFBF9;
         }
 
-        body {
+        body { 
             background-color: var(--bg-crema);
             font-family: 'Jost', sans-serif;
             color: var(--tierra-oscuro);

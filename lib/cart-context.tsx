@@ -19,6 +19,7 @@ export interface CartItem {
     stock_status: string;
 }
 
+
 interface CartContextType {
     items: CartItem[];
     addItem: (item: Omit<CartItem, "quantity">, quantity?: number) => void;

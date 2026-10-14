@@ -6,7 +6,6 @@ const SECRET = new TextEncoder().encode(
 );
 
 const COOKIE_NAME = "mezo_session";
-
 export interface SessionPayload {
     userId: number;
     email: string;

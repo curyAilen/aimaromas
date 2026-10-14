@@ -9,6 +9,8 @@ cloudinary.config({
 
 export { cloudinary };
 
+
+
 /**
  * Sube un archivo (Buffer) a Cloudinary y devuelve la URL y el public_id.
  */

@@ -48,6 +48,8 @@ export interface AttributeValue {
     sort_order: number;
 }
 
+
+
 export interface ProductVariant {
     id_variant: number;
     id_product: number;
