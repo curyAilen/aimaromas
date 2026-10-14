@@ -14,6 +14,7 @@ export async function GET(req: NextRequest) {
         const search = searchParams.get("search") || "";
         const categoryId = searchParams.get("category") || "";
         const withVariants = searchParams.get("withVariants") === "true";
+        const withImages = searchParams.get("withImages") === "true";
 
         let query = `
       SELECT 
@@ -41,21 +42,34 @@ export async function GET(req: NextRequest) {
 
         const [rows] = await pool.query<RowDataPacket[]>(query, params);
 
-        // Si pide las variantes, traerlas
+        // Traer variantes si se pide
         if (withVariants && rows.length > 0) {
             const productIds = rows.map((p) => p.id_product);
-
             const [variants] = await pool.query<RowDataPacket[]>(
                 `SELECT id_variant, id_product, scent FROM product_variants 
          WHERE id_product IN (?) AND active = 1
          ORDER BY scent ASC`,
                 [productIds]
             );
-
-            // Agrupar por producto
             for (const product of rows) {
                 product.variants = variants.filter(
                     (v) => v.id_product === product.id_product
+                );
+            }
+        }
+
+        // Traer imágenes si se pide
+        if (withImages && rows.length > 0) {
+            const productIds = rows.map((p) => p.id_product);
+            const [images] = await pool.query<RowDataPacket[]>(
+                `SELECT id_image, id_product, url, sort_order FROM product_images 
+         WHERE id_product IN (?)
+         ORDER BY sort_order ASC, id_image ASC`,
+                [productIds]
+            );
+            for (const product of rows) {
+                product.images = images.filter(
+                    (i) => i.id_product === product.id_product
                 );
             }
         }
@@ -87,6 +101,7 @@ export async function POST(req: NextRequest) {
             description,
             active,
             stock_status,
+            tag,
         } = body;
 
         if (!id_category || !name) {
@@ -98,8 +113,8 @@ export async function POST(req: NextRequest) {
 
         const [result] = await pool.query<ResultSetHeader>(
             `INSERT INTO products 
-       (id_category, name, size_name, size_cm, price, description, active, stock_status, createdAt, updatedAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+       (id_category, name, size_name, size_cm, price, description, active, stock_status, tag, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
             [
                 id_category,
                 name,
@@ -109,6 +124,7 @@ export async function POST(req: NextRequest) {
                 description || null,
                 active === false ? 0 : 1,
                 stock_status || "in_stock",
+                tag || "aromas",
             ]
         );
 

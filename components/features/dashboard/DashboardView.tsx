@@ -13,7 +13,19 @@ import {
     Crown,
     Sparkles,
     Droplet,
+    BarChart3,
+    ShoppingCart,
 } from "lucide-react";
+import {
+    BarChart,
+    Bar,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    ResponsiveContainer,
+    Legend,
+} from "recharts";
 import { formatCurrency } from "@/lib/whatsapp";
 
 type TagFilter = "all" | "aromas" | "relax";
@@ -31,22 +43,30 @@ interface Comprador {
     total_spent: string;
 }
 
-interface TagStat {
+interface PendingOrder {
+    id_order: number;
     tag: string;
-    total_revenue: string;
-    total_qty: number;
+    total: string;
+    createdAt: string;
+    client_name: string;
+    client_phone: string;
+    reseller_name: string | null;
 }
 
 interface DashboardData {
     tag: string;
     ventas: {
-        grupoA: number;
-        grupoB: number;
+        aromas: number;
+        relax: number;
         total: number;
         orders_count: number;
         clientes: number;
     };
-    pendientes: { count: number; total: number };
+    pendientes: {
+        count: number;
+        total: number;
+        orders: PendingOrder[];
+    };
     compradorMes: Comprador | null;
     compradorAnio: Comprador | null;
     birthdays: Array<{
@@ -56,14 +76,39 @@ interface DashboardData {
         days_until: number;
         next_birthday: string;
     }>;
-    topProducto: { mes: TopProduct | null; anio: TopProduct | null };
-    tagStats: TagStat[];
+    topAromas: {
+        mes: TopProduct | null;
+        anio: TopProduct | null;
+    };
+    topRelax: {
+        mes: TopProduct | null;
+        anio: TopProduct | null;
+    };
+    salesByMonth: Array<{
+        monthName: string;
+        Aromas: number;
+        Relax: number;
+    }>;
 }
+
+const STORAGE_KEY = "aima_dashboard_tag";
 
 export function DashboardView() {
     const [data, setData] = useState<DashboardData | null>(null);
     const [loading, setLoading] = useState(true);
-    const [tag, setTag] = useState<TagFilter>("all");
+
+    // Cargar tag desde localStorage
+    const [tag, setTag] = useState<TagFilter>(() => {
+        if (typeof window === "undefined") return "all";
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored === "aromas" || stored === "relax") return stored;
+        return "all";
+    });
+
+    // Persistir tag
+    useEffect(() => {
+        localStorage.setItem(STORAGE_KEY, tag);
+    }, [tag]);
 
     useEffect(() => {
         async function load() {
@@ -71,7 +116,7 @@ export function DashboardView() {
             try {
                 const res = await fetch(`/api/dashboard?tag=${tag}`);
                 const json = await res.json();
-                setData(json);
+                if (res.ok) setData(json);
             } catch (error) {
                 console.error(error);
             } finally {
@@ -84,28 +129,32 @@ export function DashboardView() {
     if (loading || !data) {
         return (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {[...Array(3)].map((_, i) => (
-                    <div key={i} className="bg-white rounded-3xl p-6 h-48 animate-pulse" />
+                {[...Array(6)].map((_, i) => (
+                    <div
+                        key={i}
+                        className="bg-white rounded-3xl p-6 h-48 animate-pulse"
+                    />
                 ))}
             </div>
         );
     }
 
-    const { ventas, pendientes, compradorMes, compradorAnio, birthdays, topProducto } = data;
+    const {
+        ventas,
+        pendientes,
+        compradorMes,
+        compradorAnio,
+        birthdays,
+        topAromas,
+        topRelax,
+        salesByMonth,
+    } = data;
 
     const tagLabels: Record<TagFilter, string> = {
         all: "Todos",
         aromas: "🕯️ Aromas",
         relax: "🧼 Relax",
     };
-
-    const topProductEmoji = tag === "aromas" ? "🕯️" : tag === "relax" ? "🧼" : "🏆";
-    const topProductTitle =
-        tag === "aromas"
-            ? "Top Producto — Aromas"
-            : tag === "relax"
-                ? "Top Producto — Relax"
-                : "Producto Más Vendido";
 
     return (
         <div className="space-y-6">
@@ -135,7 +184,7 @@ export function DashboardView() {
                 </div>
             </div>
 
-            {/* FILA 1: Ventas + Pendientes + Comprador */}
+            {/* FILA 1: Ventas + Pedidos Pendientes + Comprador N°1 */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* CARD 1: Ventas Mensuales */}
                 <div className="bg-gradient-soft rounded-3xl p-6 shadow-card">
@@ -159,7 +208,7 @@ export function DashboardView() {
                                 <Sparkles className="w-3 h-3" /> Aromas
                             </p>
                             <p className="text-xl font-bold text-accent-pink mt-1 truncate">
-                                {formatCurrency(ventas.grupoA)}
+                                {formatCurrency(ventas.aromas)}
                             </p>
                         </div>
                         <div className="bg-white/70 rounded-2xl p-3">
@@ -167,7 +216,7 @@ export function DashboardView() {
                                 <Droplet className="w-3 h-3" /> Relax
                             </p>
                             <p className="text-xl font-bold text-accent-purple mt-1 truncate">
-                                {formatCurrency(ventas.grupoB)}
+                                {formatCurrency(ventas.relax)}
                             </p>
                         </div>
                     </div>
@@ -216,22 +265,62 @@ export function DashboardView() {
                         </Link>
                     </div>
 
-                    <div className="flex-1 flex flex-col justify-center">
-                        <p className="text-6xl font-bold text-orange-500">
+                    <div className="flex items-baseline gap-2 mb-3">
+                        <p className="text-4xl font-bold text-orange-500">
                             {pendientes.count}
                         </p>
-                        <p className="text-xs text-text-secondary mt-2">
-                            pedido{pendientes.count !== 1 ? "s" : ""} sin pagar
-                        </p>
-                        <div className="mt-5 pt-5 border-t border-gray-100">
-                            <p className="text-[10px] text-text-secondary uppercase tracking-wide mb-1">
-                                Total a cobrar
-                            </p>
-                            <p className="text-2xl font-bold text-text-primary">
-                                {formatCurrency(pendientes.total)}
-                            </p>
-                        </div>
+                        <p className="text-xs text-text-secondary">sin pagar</p>
                     </div>
+
+                    <div className="pt-3 border-t border-gray-100 mb-3">
+                        <p className="text-[10px] text-text-secondary uppercase tracking-wide mb-1">
+                            Total a cobrar
+                        </p>
+                        <p className="text-2xl font-bold text-text-primary">
+                            {formatCurrency(pendientes.total)}
+                        </p>
+                    </div>
+
+                    {/* Lista de pendientes */}
+                    {pendientes.orders.length > 0 && (
+                        <div className="pt-3 border-t border-gray-100 space-y-2 max-h-48 overflow-y-auto">
+                            <p className="text-[10px] text-text-secondary uppercase tracking-wide">
+                                Detalle
+                            </p>
+                            {pendientes.orders.slice(0, 5).map((o) => (
+                                <Link
+                                    key={o.id_order}
+                                    href={`/admin/pedidos/${o.id_order}`}
+                                    className="flex items-start justify-between gap-2 py-1.5 hover:bg-gray-50 rounded-lg px-2 -mx-2 transition-colors"
+                                >
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-medium text-text-primary truncate">
+                                            #{o.id_order} — {o.client_name}
+                                        </p>
+                                        <p className="text-[10px] text-text-secondary truncate">
+                                            {o.tag === "aromas"
+                                                ? "🕯️ Aromas"
+                                                : o.tag === "relax"
+                                                    ? "🧼 Relax"
+                                                    : "🔀 Mixto"}
+                                            {o.reseller_name && ` • ${o.reseller_name}`}
+                                        </p>
+                                    </div>
+                                    <p className="text-xs font-semibold text-orange-600 whitespace-nowrap">
+                                        {formatCurrency(o.total)}
+                                    </p>
+                                </Link>
+                            ))}
+                            {pendientes.orders.length > 5 && (
+                                <Link
+                                    href="/admin/pedidos"
+                                    className="block text-center text-[10px] text-accent-pink hover:underline"
+                                >
+                                    Ver todos ({pendientes.orders.length})
+                                </Link>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 {/* CARD 3: Comprador N°1 */}
@@ -299,18 +388,81 @@ export function DashboardView() {
                 </div>
             </div>
 
-            {/* FILA 2: Top Producto (mes + año) */}
-            <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
+            {/* FILA 2: Top Productos (Aromas + Relax) */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <TopProductCard
-                    title={topProductTitle}
-                    emoji={topProductEmoji}
-                    mes={topProducto.mes}
-                    anio={topProducto.anio}
+                    title="Top Aromas"
+                    emoji="🕯️"
+                    mes={topAromas.mes}
+                    anio={topAromas.anio}
+                    color="pink"
+                />
+                <TopProductCard
+                    title="Top Relax"
+                    emoji="🧼"
+                    mes={topRelax.mes}
+                    anio={topRelax.anio}
+                    color="purple"
                 />
             </div>
 
-            {/* FILA 3: Cumpleaños + Fechas Importantes */}
+            {/* FILA 3: Gráfico Ventas por Mes */}
+            <div className="bg-white rounded-3xl p-6 shadow-card border border-gray-100/50">
+                <div className="flex items-center gap-2 mb-4">
+                    <BarChart3 className="w-4 h-4 text-accent-purple" />
+                    <h2 className="text-sm font-semibold text-text-primary">
+                        Ventas del año por área
+                    </h2>
+                </div>
+                <div className="h-72">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={salesByMonth}>
+                            <CartesianGrid
+                                strokeDasharray="3 3"
+                                stroke="#F0F0F5"
+                                vertical={false}
+                            />
+                            <XAxis
+                                dataKey="monthName"
+                                tick={{ fontSize: 10, fill: "#8A8A8A" }}
+                                tickLine={false}
+                                axisLine={false}
+                            />
+                            <YAxis
+                                tick={{ fontSize: 10, fill: "#8A8A8A" }}
+                                tickLine={false}
+                                axisLine={false}
+                                tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
+                            />
+                            <Tooltip
+                                contentStyle={{
+                                    borderRadius: 12,
+                                    border: "1px solid #F0F0F5",
+                                    fontSize: 12,
+                                }}
+                                formatter={(value: number) => formatCurrency(value)}
+                            />
+                            <Legend wrapperStyle={{ fontSize: 11 }} iconType="circle" />
+                            <Bar
+                                dataKey="Aromas"
+                                fill="#FF4D8D"
+                                radius={[8, 8, 0, 0]}
+                                barSize={20}
+                            />
+                            <Bar
+                                dataKey="Relax"
+                                fill="#A855F7"
+                                radius={[8, 8, 0, 0]}
+                                barSize={20}
+                            />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
+            </div>
+
+            {/* FILA 4: Cumpleaños + Fechas Importantes */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Cumpleaños */}
                 <div className="bg-white rounded-3xl p-6 shadow-card border border-gray-100/50">
                     <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-2">
@@ -378,6 +530,7 @@ export function DashboardView() {
                     )}
                 </div>
 
+                {/* Fechas Importantes */}
                 <div className="bg-white rounded-3xl p-6 shadow-card border border-gray-100/50">
                     <div className="flex items-center gap-2 mb-4">
                         <div className="w-8 h-8 rounded-lg bg-accent-purple/10 flex items-center justify-center">
@@ -394,17 +547,25 @@ export function DashboardView() {
     );
 }
 
+/* ============================================================
+   TOP PRODUCT CARD (3 productos por área)
+   ============================================================ */
 function TopProductCard({
     title,
     emoji,
     mes,
     anio,
+    color,
 }: {
     title: string;
     emoji: string;
     mes: TopProduct | null;
     anio: TopProduct | null;
+    color: "pink" | "purple";
 }) {
+    const colorClass =
+        color === "pink" ? "text-accent-pink" : "text-accent-purple";
+
     return (
         <div className="bg-white rounded-3xl p-6 shadow-card border border-gray-100/50">
             <div className="flex items-center gap-2 mb-4">
@@ -425,11 +586,11 @@ function TopProductCard({
                                 {mes.product_name}
                             </p>
                             {mes.variant_scent && (
-                                <p className="text-xs text-accent-pink mt-0.5">
+                                <p className={`text-xs ${colorClass} mt-0.5`}>
                                     {mes.variant_scent}
                                 </p>
                             )}
-                            <p className="text-2xl font-bold text-accent-pink mt-2">
+                            <p className={`text-2xl font-bold ${colorClass} mt-2`}>
                                 {mes.total_qty}
                             </p>
                             <p className="text-[10px] text-text-secondary">
@@ -451,11 +612,11 @@ function TopProductCard({
                                 {anio.product_name}
                             </p>
                             {anio.variant_scent && (
-                                <p className="text-xs text-accent-pink mt-0.5">
+                                <p className={`text-xs ${colorClass} mt-0.5`}>
                                     {anio.variant_scent}
                                 </p>
                             )}
-                            <p className="text-2xl font-bold text-accent-pink mt-2">
+                            <p className={`text-2xl font-bold ${colorClass} mt-2`}>
                                 {anio.total_qty}
                             </p>
                             <p className="text-[10px] text-text-secondary">
@@ -471,6 +632,9 @@ function TopProductCard({
     );
 }
 
+/* ============================================================
+   FECHAS IMPORTANTES
+   ============================================================ */
 function FechasImportantes() {
     const fechas = [
         { dia: 1, mes: 0, nombre: "Año Nuevo" },

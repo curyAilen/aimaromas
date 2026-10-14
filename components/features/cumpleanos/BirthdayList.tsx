@@ -98,8 +98,8 @@ export function BirthdayList() {
                         key={r.value}
                         onClick={() => setRange(r.value)}
                         className={`px-4 py-2 rounded-full text-xs font-medium whitespace-nowrap transition-all ${range === r.value
-                                ? "bg-gradient-main text-white shadow-md shadow-accent-pink/20"
-                                : "bg-white text-text-secondary border border-gray-100 hover:border-accent-pink/50"
+                            ? "bg-gradient-main text-white shadow-md shadow-accent-pink/20"
+                            : "bg-white text-text-secondary border border-gray-100 hover:border-accent-pink/50"
                             }`}
                     >
                         {r.label}
@@ -120,13 +120,13 @@ export function BirthdayList() {
                     </p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     {clients.map((client) => (
                         <div
                             key={client.id_client}
                             className={`bg-white rounded-3xl shadow-card border p-5 ${client.is_today
-                                    ? "border-accent-pink ring-2 ring-accent-pink/20"
-                                    : "border-gray-100/50"
+                                ? "border-accent-pink ring-2 ring-accent-pink/20"
+                                : "border-gray-100/50"
                                 }`}
                         >
                             {client.is_today && (

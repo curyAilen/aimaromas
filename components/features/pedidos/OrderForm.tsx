@@ -2,10 +2,20 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Plus, Trash2, Save, Truck, Store, DollarSign } from "lucide-react";
+import {
+    ArrowLeft,
+    Plus,
+    Trash2,
+    Save,
+    Truck,
+    Store,
+    DollarSign,
+    CalendarClock,
+} from "lucide-react";
 import Link from "next/link";
 import { formatCurrency, buildOrderMessage, buildWhatsAppUrl } from "@/lib/whatsapp";
 import type { Client, Product, OrderItemInput } from "@/lib/types";
+import { ClientSearch } from "./ClientSearch";
 
 interface Variant {
     id_variant: number;
@@ -29,11 +39,12 @@ export function OrderForm({ preselectedClientId }: OrderFormProps) {
     const [clients, setClients] = useState<Client[]>([]);
     const [products, setProducts] = useState<Product[]>([]);
     const [resellers, setResellers] = useState<Reseller[]>([]);
-    const [selectedClientId, setSelectedClientId] = useState<string>(
-        preselectedClientId ? String(preselectedClientId) : ""
+    const [selectedClientId, setSelectedClientId] = useState<number | null>(
+        preselectedClientId || null
     );
     const [selectedResellerId, setSelectedResellerId] = useState<string>("");
     const [commissionPercent, setCommissionPercent] = useState<string>("");
+    const [paysNextMonth, setPaysNextMonth] = useState(false);
     const [requiresDelivery, setRequiresDelivery] = useState(false);
     const [deliveryAddress, setDeliveryAddress] = useState("");
     const [notes, setNotes] = useState("");
@@ -97,12 +108,14 @@ export function OrderForm({ preselectedClientId }: OrderFormProps) {
         loadSession();
     }, []);
 
+    // Al cambiar el cliente, precargar dirección
     useEffect(() => {
         if (!selectedClientId) return;
-        const client = clients.find((c) => c.id_client === Number(selectedClientId));
+        const client = clients.find((c) => c.id_client === selectedClientId);
         if (client?.address) setDeliveryAddress(client.address);
     }, [selectedClientId, clients]);
 
+    // Al cambiar la revendedora, precargar % de comisión
     useEffect(() => {
         if (!selectedResellerId) {
             setCommissionPercent("");
@@ -195,11 +208,12 @@ export function OrderForm({ preselectedClientId }: OrderFormProps) {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    id_client: Number(selectedClientId),
+                    id_client: selectedClientId,
                     id_reseller: selectedResellerId ? Number(selectedResellerId) : null,
                     commission_percent: commissionPercent
                         ? Number(commissionPercent)
                         : null,
+                    pays_next_month: paysNextMonth,
                     requires_delivery: requiresDelivery,
                     delivery_address: deliveryAddress,
                     notes,
@@ -259,25 +273,19 @@ export function OrderForm({ preselectedClientId }: OrderFormProps) {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-5">
+                {/* Cliente */}
                 <div className="bg-white rounded-3xl shadow-card border border-gray-100/50 p-6">
                     <h2 className="text-sm font-semibold text-text-primary mb-4">
                         Cliente
                     </h2>
-                    <select
-                        required
-                        value={selectedClientId}
-                        onChange={(e) => setSelectedClientId(e.target.value)}
-                        className="input"
-                    >
-                        <option value="">Seleccioná un cliente</option>
-                        {clients.map((c) => (
-                            <option key={c.id_client} value={c.id_client}>
-                                {c.name} — {c.phone}
-                            </option>
-                        ))}
-                    </select>
+                    <ClientSearch
+                        clients={clients}
+                        selectedClientId={selectedClientId}
+                        onSelect={setSelectedClientId}
+                    />
                 </div>
 
+                {/* Revendedora */}
                 <div className="bg-white rounded-3xl shadow-card border border-gray-100/50 p-6 space-y-4">
                     <div className="flex items-center gap-2">
                         <Store className="w-4 h-4 text-accent-purple" />
@@ -342,6 +350,7 @@ export function OrderForm({ preselectedClientId }: OrderFormProps) {
                     )}
                 </div>
 
+                {/* Productos */}
                 <div className="bg-white rounded-3xl shadow-card border border-gray-100/50 p-6 space-y-4">
                     <div className="flex items-center justify-between">
                         <h2 className="text-sm font-semibold text-text-primary">
@@ -375,6 +384,7 @@ export function OrderForm({ preselectedClientId }: OrderFormProps) {
                     )}
                 </div>
 
+                {/* Envío */}
                 <div className="bg-white rounded-3xl shadow-card border border-gray-100/50 p-6 space-y-4">
                     <div className="flex items-center gap-3">
                         <input
@@ -425,6 +435,31 @@ export function OrderForm({ preselectedClientId }: OrderFormProps) {
                     )}
                 </div>
 
+                {/* Cobra a mes siguiente */}
+                <div className="bg-white rounded-3xl shadow-card border border-gray-100/50 p-6">
+                    <div className="flex items-center gap-3">
+                        <input
+                            type="checkbox"
+                            id="paysNextMonth"
+                            checked={paysNextMonth}
+                            onChange={(e) => setPaysNextMonth(e.target.checked)}
+                            className="w-4 h-4 rounded border-gray-300 text-accent-pink focus:ring-accent-pink/20"
+                        />
+                        <label
+                            htmlFor="paysNextMonth"
+                            className="text-sm font-medium text-text-primary flex items-center gap-2"
+                        >
+                            <CalendarClock className="w-4 h-4" />
+                            Se cobra a mes siguiente
+                        </label>
+                    </div>
+                    <p className="text-xs text-text-secondary mt-2">
+                        Marcá esta opción si el pedido se cobrará recién el mes que viene.
+                        Quedará como pendiente de pago.
+                    </p>
+                </div>
+
+                {/* Notas */}
                 <div className="bg-white rounded-3xl shadow-card border border-gray-100/50 p-6">
                     <h2 className="text-sm font-semibold text-text-primary mb-3">
                         Notas (opcional)
@@ -438,6 +473,7 @@ export function OrderForm({ preselectedClientId }: OrderFormProps) {
                     />
                 </div>
 
+                {/* Resumen */}
                 <div className="bg-gradient-soft rounded-3xl p-6 space-y-3">
                     <div className="flex items-center justify-between text-sm">
                         <span className="text-text-secondary">Subtotal</span>
@@ -521,6 +557,9 @@ export function OrderForm({ preselectedClientId }: OrderFormProps) {
     );
 }
 
+/* ============================================================
+   SELECTOR DE PRODUCTOS
+   ============================================================ */
 function ProductPicker({
     products,
     onAdd,
@@ -599,6 +638,9 @@ function ProductPicker({
     );
 }
 
+/* ============================================================
+   FILA DE ITEM
+   ============================================================ */
 function OrderItemRow({
     item,
     onRemove,

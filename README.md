@@ -78,7 +78,7 @@ CLOUDINARY_API_SECRET=tu_api_secret
 
 # Cloudinary - Upload directo desde el browser
 NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=tu_cloud_name
-NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET=mezo_productos
+NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET=img_productos
 
 # URL del sitio
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
@@ -125,7 +125,7 @@ Las imágenes NO se suben a Vercel (por el límite de 4.5 MB de las serverless f
 
 Configuración en Cloudinary
 Settings → Upload → Upload presets.
-Crear preset "mezo_productos" con:
+Crear preset "img_productos" con:
 Signing Mode: Unsigned
 Folder: mezo/productos
 

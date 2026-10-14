@@ -27,12 +27,12 @@ export async function proxy(req: NextRequest) {
     // Login (ruta especial)
     const isLoginPage = pathname === "/admin/login";
 
-    // 1. Si está en /admin/login y ya está logueado → redirigir a /admin/select-area
+    // 1. Si está en /admin/login y ya está logueado → redirigir a /admin
     if (isLoginPage) {
         if (token) {
             const session = await verifyToken(token);
             if (session) {
-                return NextResponse.redirect(new URL("/admin/select-area", req.url));
+                return NextResponse.redirect(new URL("/admin", req.url));
             }
         }
         return NextResponse.next();
@@ -40,11 +40,11 @@ export async function proxy(req: NextRequest) {
 
     // 2. Si está en una ruta pública
     if (isPublicRoute) {
-        // Si está en "/" y está logueado → redirigir a /admin/select-area
+        // Si está en "/" y está logueado → redirigir a /admin
         if (pathname === "/" && token) {
             const session = await verifyToken(token);
             if (session) {
-                return NextResponse.redirect(new URL("/admin/select-area", req.url));
+                return NextResponse.redirect(new URL("/admin", req.url));
             }
         }
         return NextResponse.next();
@@ -66,39 +66,17 @@ export async function proxy(req: NextRequest) {
         // ============================================================
         // VALIDACIÓN DE ROL
         // ============================================================
-
         const role = (session as any).role;
 
-        // Si es Gerenta:
-        // - Solo puede acceder a /admin/relax/* y a las rutas compartidas
-        // - NO puede acceder a /admin/aromas/*, /admin/overview, /admin/configuracion
-
-        if (role === "GERENTA") {
-            // Bloquear Aromas
-            if (pathname.startsWith("/admin/aromas")) {
-                return NextResponse.redirect(new URL("/admin/relax", req.url));
-            }
-
-            // Bloquear Overview
-            if (pathname.startsWith("/admin/overview")) {
-                return NextResponse.redirect(new URL("/admin/relax", req.url));
-            }
-
-            // Bloquear Configuración
-            if (pathname.startsWith("/admin/configuracion")) {
-                return NextResponse.redirect(new URL("/admin/relax", req.url));
-            }
-
-            // Bloquear la raíz de /admin → ir a Relax
-            if (pathname === "/admin" || pathname === "/admin/") {
-                return NextResponse.redirect(new URL("/admin/relax", req.url));
-            }
+        // Si es Gerenta, bloquear Configuración
+        if (role === "GERENTA" && pathname.startsWith("/admin/configuracion")) {
+            return NextResponse.redirect(new URL("/admin", req.url));
         }
 
         return NextResponse.next();
     }
 
-    // 4. Cualquier otra ruta (no clasificada) → dejar pasar
+    // 4. Cualquier otra ruta → dejar pasar
     return NextResponse.next();
 }
 

@@ -99,7 +99,8 @@ export async function POST(req: NextRequest) {
         const {
             id_client,
             id_reseller,
-            commission_percent, // Opcional: si viene, sobreescribe el default
+            commission_percent,
+            pays_next_month,   // Opcional: si viene, sobreescribe el default
             requires_delivery,
             delivery_address,
             notes,
@@ -189,8 +190,8 @@ export async function POST(req: NextRequest) {
         // Insertar pedido
         const [orderResult] = await conn.query<ResultSetHeader>(
             `INSERT INTO orders 
-       (id_client, id_user, id_reseller, total, delivery_cost, requires_delivery, delivery_address, status, tag, commission_percent, commission_amount, commission_paid, notes, createdAt, updatedAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, 0, ?, NOW(), NOW())`,
+   (id_client, id_user, id_reseller, total, delivery_cost, requires_delivery, delivery_address, status, tag, commission_percent, commission_amount, commission_paid, pays_next_month, notes, createdAt, updatedAt)
+   VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, 0, ?, ?, NOW(), NOW())`,
             [
                 id_client,
                 session.userId,
@@ -202,6 +203,7 @@ export async function POST(req: NextRequest) {
                 orderTag,
                 finalCommissionPercent,
                 commissionAmount,
+                pays_next_month ? 1 : 0,   // ⬅️ NUEVO
                 notes || null,
             ]
         );

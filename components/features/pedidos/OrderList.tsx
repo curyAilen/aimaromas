@@ -234,23 +234,16 @@ export function OrderList() {
                                             </td>
                                             <td className="px-4 py-3">
                                                 {isCancelled ? (
-                                                    <span className="text-[10px] font-medium text-red-700 bg-red-100 px-2.5 py-1 rounded-full whitespace-nowrap">
-                                                        Cancelado
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-[10px] font-medium text-blue-700 bg-blue-100 px-2.5 py-1 rounded-full whitespace-nowrap">
-                                                        Activo
-                                                    </span>
-                                                )}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {isCancelled ? (
                                                     <span className="text-[10px] font-medium text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full">
                                                         —
                                                     </span>
                                                 ) : isPaid ? (
                                                     <span className="text-[10px] font-medium text-green-700 bg-green-100 px-2.5 py-1 rounded-full whitespace-nowrap">
                                                         ✓ Pagado
+                                                    </span>
+                                                ) : (order as any).pays_next_month === 1 ? (
+                                                    <span className="text-[10px] font-medium text-purple-700 bg-purple-100 px-2.5 py-1 rounded-full whitespace-nowrap">
+                                                        📅 Mes sig.
                                                     </span>
                                                 ) : (
                                                     <span className="text-[10px] font-medium text-orange-700 bg-orange-100 px-2.5 py-1 rounded-full whitespace-nowrap">
@@ -284,8 +277,8 @@ export function OrderList() {
                                                             }
                                                             disabled={isUpdating}
                                                             className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors disabled:opacity-50 ${isPaid
-                                                                    ? "bg-green-100 hover:bg-green-200"
-                                                                    : "hover:bg-green-50"
+                                                                ? "bg-green-100 hover:bg-green-200"
+                                                                : "hover:bg-green-50"
                                                                 }`}
                                                             title={isPaid ? "Marcar como NO pagado" : "Marcar como pagado"}
                                                         >
@@ -305,8 +298,8 @@ export function OrderList() {
                                                             }
                                                             disabled={isUpdating}
                                                             className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors disabled:opacity-50 ${isDelivered
-                                                                    ? "bg-blue-100 hover:bg-blue-200"
-                                                                    : "hover:bg-blue-50"
+                                                                ? "bg-blue-100 hover:bg-blue-200"
+                                                                : "hover:bg-blue-50"
                                                                 }`}
                                                             title={isDelivered ? "Marcar como NO entregado" : "Marcar como entregado"}
                                                         >

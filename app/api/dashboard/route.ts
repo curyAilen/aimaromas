@@ -11,20 +11,15 @@ export async function GET(req: NextRequest) {
         }
 
         const { searchParams } = new URL(req.url);
-        const tag = searchParams.get("tag") || "all"; // "aromas" | "relax" | "all"
-
-        // Condición WHERE según el tag
-        let tagCondition = "";
-        if (tag === "aromas") tagCondition = " AND p.tag = 'aromas'";
-        else if (tag === "relax") tagCondition = " AND p.tag = 'relax'";
+        const tag = searchParams.get("tag") || "all";
 
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
         // ============================================================
-        // CARD 1: VENTAS MENSUALES (por tag)
+        // CARD 1: VENTAS MENSUALES POR TAG
         // ============================================================
-        const [ventasGrupoA] = await pool.query<RowDataPacket[]>(
+        const [ventasAromas] = await pool.query<RowDataPacket[]>(
             `SELECT COALESCE(SUM(o.total), 0) AS total
        FROM orders o
        WHERE o.status != 'cancelled'
@@ -38,7 +33,7 @@ export async function GET(req: NextRequest) {
          )`
         );
 
-        const [ventasGrupoB] = await pool.query<RowDataPacket[]>(
+        const [ventasRelax] = await pool.query<RowDataPacket[]>(
             `SELECT COALESCE(SUM(o.total), 0) AS total
        FROM orders o
        WHERE o.status != 'cancelled'
@@ -77,13 +72,38 @@ export async function GET(req: NextRequest) {
         const [pendientes] = await pool.query<RowDataPacket[]>(
             `SELECT 
         COUNT(*) AS count,
-        COALESCE(SUM(total), 0) AS total
-       FROM orders
-       WHERE paid_at IS NULL AND status != 'cancelled'`
+        COALESCE(SUM(o.total), 0) AS total
+       FROM orders o
+       WHERE o.paid_at IS NULL AND o.status != 'cancelled'`
         );
 
+        let pendingQuery = `
+      SELECT 
+        o.id_order,
+        o.tag,
+        o.total,
+        o.createdAt,
+        c.name AS client_name,
+        c.phone AS client_phone,
+        r.name AS reseller_name
+      FROM orders o
+      INNER JOIN clients c ON c.id_client = o.id_client
+      LEFT JOIN resellers r ON r.id_reseller = o.id_reseller
+      WHERE o.paid_at IS NULL AND o.status != 'cancelled'
+    `;
+
+        if (tag === "aromas") {
+            pendingQuery += " AND (o.tag = 'aromas' OR o.tag = 'mixed')";
+        } else if (tag === "relax") {
+            pendingQuery += " AND (o.tag = 'relax' OR o.tag = 'mixed')";
+        }
+
+        pendingQuery += " ORDER BY o.createdAt DESC LIMIT 10";
+
+        const [pendingOrders] = await pool.query<RowDataPacket[]>(pendingQuery);
+
         // ============================================================
-        // CARD 2B: COMPRADOR N°1 DEL MES Y DEL AÑO
+        // CARD 3: COMPRADOR N°1
         // ============================================================
         const [compradorMes] = await pool.query<RowDataPacket[]>(
             `SELECT 
@@ -115,7 +135,7 @@ export async function GET(req: NextRequest) {
         );
 
         // ============================================================
-        // CARD 3: PRÓXIMOS CUMPLEAÑOS
+        // CARD 4: CUMPLEAÑOS
         // ============================================================
         const [birthdayRows] = await pool.query<RowDataPacket[]>(
             `SELECT id_client, name, phone, birthday FROM clients WHERE birthday IS NOT NULL`
@@ -124,7 +144,11 @@ export async function GET(req: NextRequest) {
         const birthdays = birthdayRows
             .map((c) => {
                 const bday = new Date(c.birthday);
-                const nextBday = new Date(today.getFullYear(), bday.getMonth(), bday.getDate());
+                const nextBday = new Date(
+                    today.getFullYear(),
+                    bday.getMonth(),
+                    bday.getDate()
+                );
                 if (nextBday < today) nextBday.setFullYear(today.getFullYear() + 1);
                 const daysUntil = Math.ceil(
                     (nextBday.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
@@ -139,21 +163,18 @@ export async function GET(req: NextRequest) {
                 };
             })
             .sort((a, b) => a.days_until - b.days_until)
-            .slice(0, 8);
+            .slice(0, 4);
 
         // ============================================================
-        // CARD 4: TOP PRODUCTO (según tag seleccionado)
+        // CARD 5: TOP PRODUCTOS
         // ============================================================
-        const [topProductoMes] = await pool.query<RowDataPacket[]>(
-            `SELECT 
-        oi.product_name,
-        oi.variant_scent,
-        SUM(oi.quantity) AS total_qty
+        const [topAromasMes] = await pool.query<RowDataPacket[]>(
+            `SELECT oi.product_name, oi.variant_scent, SUM(oi.quantity) AS total_qty
        FROM order_items oi
        INNER JOIN orders o ON o.id_order = oi.id_order
        INNER JOIN products p ON p.id_product = oi.id_product
        WHERE o.status != 'cancelled'
-         ${tagCondition}
+         AND p.tag = 'aromas'
          AND MONTH(o.createdAt) = MONTH(NOW())
          AND YEAR(o.createdAt) = YEAR(NOW())
        GROUP BY oi.product_name, oi.variant_scent
@@ -161,16 +182,40 @@ export async function GET(req: NextRequest) {
        LIMIT 1`
         );
 
-        const [topProductoAnio] = await pool.query<RowDataPacket[]>(
-            `SELECT 
-        oi.product_name,
-        oi.variant_scent,
-        SUM(oi.quantity) AS total_qty
+        const [topAromasAnio] = await pool.query<RowDataPacket[]>(
+            `SELECT oi.product_name, oi.variant_scent, SUM(oi.quantity) AS total_qty
        FROM order_items oi
        INNER JOIN orders o ON o.id_order = oi.id_order
        INNER JOIN products p ON p.id_product = oi.id_product
        WHERE o.status != 'cancelled'
-         ${tagCondition}
+         AND p.tag = 'aromas'
+         AND YEAR(o.createdAt) = YEAR(NOW())
+       GROUP BY oi.product_name, oi.variant_scent
+       ORDER BY total_qty DESC
+       LIMIT 1`
+        );
+
+        const [topRelaxMes] = await pool.query<RowDataPacket[]>(
+            `SELECT oi.product_name, oi.variant_scent, SUM(oi.quantity) AS total_qty
+       FROM order_items oi
+       INNER JOIN orders o ON o.id_order = oi.id_order
+       INNER JOIN products p ON p.id_product = oi.id_product
+       WHERE o.status != 'cancelled'
+         AND p.tag = 'relax'
+         AND MONTH(o.createdAt) = MONTH(NOW())
+         AND YEAR(o.createdAt) = YEAR(NOW())
+       GROUP BY oi.product_name, oi.variant_scent
+       ORDER BY total_qty DESC
+       LIMIT 1`
+        );
+
+        const [topRelaxAnio] = await pool.query<RowDataPacket[]>(
+            `SELECT oi.product_name, oi.variant_scent, SUM(oi.quantity) AS total_qty
+       FROM order_items oi
+       INNER JOIN orders o ON o.id_order = oi.id_order
+       INNER JOIN products p ON p.id_product = oi.id_product
+       WHERE o.status != 'cancelled'
+         AND p.tag = 'relax'
          AND YEAR(o.createdAt) = YEAR(NOW())
        GROUP BY oi.product_name, oi.variant_scent
        ORDER BY total_qty DESC
@@ -178,26 +223,66 @@ export async function GET(req: NextRequest) {
         );
 
         // ============================================================
-        // CARD 5: VENTAS POR TAG (aromas vs relax)
+        // FILA 3: VENTAS DEL AÑO POR MES Y POR ÁREA
         // ============================================================
-        const [tagStats] = await pool.query<RowDataPacket[]>(
+        const currentYear = today.getFullYear();
+        const [salesByMonthAromas] = await pool.query<RowDataPacket[]>(
             `SELECT 
-        p.tag,
-        COALESCE(SUM(oi.subtotal), 0) AS total_revenue,
-        SUM(oi.quantity) AS total_qty
-       FROM order_items oi
-       INNER JOIN orders o ON o.id_order = oi.id_order
-       INNER JOIN products p ON p.id_product = oi.id_product
+        MONTH(o.createdAt) AS month,
+        COALESCE(SUM(o.total), 0) AS revenue
+       FROM orders o
        WHERE o.status != 'cancelled'
-         AND YEAR(o.createdAt) = YEAR(NOW())
-       GROUP BY p.tag`
+         AND YEAR(o.createdAt) = ?
+         AND EXISTS (
+           SELECT 1 FROM order_items oi
+           INNER JOIN products p ON p.id_product = oi.id_product
+           WHERE oi.id_order = o.id_order AND p.tag = 'aromas'
+         )
+       GROUP BY MONTH(o.createdAt)
+       ORDER BY month ASC`,
+            [currentYear]
         );
+
+        const [salesByMonthRelax] = await pool.query<RowDataPacket[]>(
+            `SELECT 
+        MONTH(o.createdAt) AS month,
+        COALESCE(SUM(o.total), 0) AS revenue
+       FROM orders o
+       WHERE o.status != 'cancelled'
+         AND YEAR(o.createdAt) = ?
+         AND EXISTS (
+           SELECT 1 FROM order_items oi
+           INNER JOIN products p ON p.id_product = oi.id_product
+           WHERE oi.id_order = o.id_order AND p.tag = 'relax'
+         )
+       GROUP BY MONTH(o.createdAt)
+       ORDER BY month ASC`,
+            [currentYear]
+        );
+
+        const monthNames = [
+            "Ene", "Feb", "Mar", "Abr", "May", "Jun",
+            "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
+        ];
+        const salesByMonth = monthNames.map((name, i) => {
+            const aromasFound = salesByMonthAromas.find(
+                (m) => Number(m.month) === i + 1
+            );
+            const relaxFound = salesByMonthRelax.find(
+                (m) => Number(m.month) === i + 1
+            );
+            return {
+                monthName: name,
+                Aromas: aromasFound ? Number(aromasFound.revenue) : 0,
+                Relax: relaxFound ? Number(relaxFound.revenue) : 0,
+            };
+        });
 
         return NextResponse.json({
             tag,
             ventas: {
-                grupoA: Number(ventasGrupoA[0]?.total || 0),
-                grupoB: Number(ventasGrupoB[0]?.total || 0),
+                aromas: Number(ventasAromas[0]?.total || 0),
+                relax: Number(ventasRelax[0]?.total || 0),
                 total: Number(ventasTotal[0]?.total || 0),
                 orders_count: Number(ventasTotal[0]?.orders_count || 0),
                 clientes: Number(clientesMes[0]?.total || 0),
@@ -205,15 +290,20 @@ export async function GET(req: NextRequest) {
             pendientes: {
                 count: Number(pendientes[0]?.count || 0),
                 total: Number(pendientes[0]?.total || 0),
+                orders: pendingOrders,
             },
             compradorMes: compradorMes[0] || null,
             compradorAnio: compradorAnio[0] || null,
             birthdays,
-            topProducto: {
-                mes: topProductoMes[0] || null,
-                anio: topProductoAnio[0] || null,
+            topAromas: {
+                mes: topAromasMes[0] || null,
+                anio: topAromasAnio[0] || null,
             },
-            tagStats,
+            topRelax: {
+                mes: topRelaxMes[0] || null,
+                anio: topRelaxAnio[0] || null,
+            },
+            salesByMonth,
         });
     } catch (error) {
         console.error("Error en GET /api/dashboard:", error);
