@@ -32,6 +32,8 @@ interface CartContextType {
     clearCart: () => void;
     totalItems: number;
     subtotal: number;
+    /** true cuando ya se leyó el carrito guardado en el navegador */
+    hydrated: boolean;
 }
 
 const CartContext = createContext<CartContextType | null>(null);
@@ -126,6 +128,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
                 clearCart,
                 totalItems,
                 subtotal,
+                hydrated,
             }}
         >
             {children}
@@ -137,4 +140,4 @@ export function useCart() {
     const ctx = useContext(CartContext);
     if (!ctx) throw new Error("useCart debe usarse dentro de CartProvider");
     return ctx;
-}
+}

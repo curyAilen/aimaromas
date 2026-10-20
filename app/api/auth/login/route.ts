@@ -24,8 +24,9 @@ export async function POST(req: NextRequest) {
         }
 
         const [rows] = await pool.query<UserRow[]>(
-            "SELECT id_user, email, password, name, role FROM users WHERE email = ? LIMIT 1",
-            [email]
+            // Solo usuarias activas: una usuaria dada de baja no puede entrar
+            "SELECT id_user, email, password, name, role FROM users WHERE email = ? AND active = 1 LIMIT 1",
+            [String(email).trim().toLowerCase()]
         );
 
         if (rows.length === 0) {
@@ -70,4 +71,4 @@ export async function POST(req: NextRequest) {
             { status: 500 }
         );
     }
-}
+}

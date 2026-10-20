@@ -18,7 +18,7 @@ import { useCart } from "@/lib/cart-context";
 
 export function CheckoutView() {
     const router = useRouter();
-    const { items, subtotal, clearCart } = useCart();
+    const { items, subtotal, clearCart, hydrated } = useCart();
 
     const [form, setForm] = useState({
         name: "",
@@ -52,12 +52,15 @@ export function CheckoutView() {
         loadSettings();
     }, []);
 
-    // Si el carrito está vacío, volver
+    // Si el carrito está vacío, volver (esperando a leer el carrito guardado:
+    // antes, al recargar /checkout siempre rebotaba al carrito)
+    // (salvo justo después de confirmar, que el carrito se vacía a propósito)
+    const [orderPlaced, setOrderPlaced] = useState(false);
     useEffect(() => {
-        if (items.length === 0) {
+        if (hydrated && items.length === 0 && !orderPlaced) {
             router.push("/carrito");
         }
-    }, [items, router]);
+    }, [items, hydrated, orderPlaced, router]);
 
     const qualifiesForFreeShipping = subtotal >= freeShippingThreshold;
     const deliveryCost =
@@ -85,14 +88,12 @@ export function CheckoutView() {
         setSubmitting(true);
 
         try {
-            // Preparar items para la API
+            // Solo se manda qué producto, qué fragancia y cuántas unidades:
+            // el precio lo calcula el servidor.
             const orderItems = items.map((item) => ({
                 id_product: item.id_product,
                 id_variant: item.id_variant,
-                product_name: item.product_name,
-                variant_scent: item.variant_scent,
                 quantity: item.quantity,
-                unit_price: item.price,
             }));
 
             const res = await fetch("/api/public/orders", {
@@ -124,12 +125,13 @@ export function CheckoutView() {
                 client_phone: form.phone,
                 requires_delivery: requiresDelivery ? 1 : 0,
                 delivery_address: requiresDelivery ? form.delivery_address : null,
-                delivery_cost: String(deliveryCost),
-                total: String(total),
+                delivery_cost: String(data.delivery_cost),
+                total: String(data.total),
                 notes: form.notes,
             } as any;
 
-            const messageItems = items.map((item, i) => ({
+            // Productos y precios tal como quedaron guardados
+            const messageItems = (data.items as any[]).map((item, i) => ({
                 id_item: i,
                 id_order: data.id_order,
                 id_product: item.id_product,
@@ -137,8 +139,8 @@ export function CheckoutView() {
                 product_name: item.product_name,
                 variant_scent: item.variant_scent,
                 quantity: item.quantity,
-                unit_price: String(item.price),
-                subtotal: String(item.price * item.quantity),
+                unit_price: String(item.unit_price),
+                subtotal: String(item.subtotal),
             }));
 
             const message = buildOrderMessage(orderForMessage, messageItems as any);
@@ -148,6 +150,7 @@ export function CheckoutView() {
             window.open(url, "_blank");
 
             // Limpiar carrito y redirigir
+            setOrderPlaced(true);
             clearCart();
             router.push("/");
         } catch (err) {
@@ -423,4 +426,4 @@ function Field({
             {children}
         </div>
     );
-}
+}

@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-
-const SECRET = new TextEncoder().encode(
-    process.env.JWT_SECRET || "fallback-secret-cambialo-en-produccion"
-);
+import { getJwtSecret } from "@/lib/env";
 
 async function verifyToken(token: string) {
     try {
-        const { payload } = await jwtVerify(token, SECRET);
+        const { payload } = await jwtVerify(token, getJwtSecret());
         return payload;
     } catch {
         return null;
@@ -82,4 +79,4 @@ export async function proxy(req: NextRequest) {
 
 export const config = {
     matcher: ["/((?!api|_next/static|_next/image|favicon.ico|logo.png).*)"],
-};
+};

@@ -1,9 +1,8 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
-
-const SECRET = new TextEncoder().encode(
-    process.env.JWT_SECRET || "fallback-secret-cambialo-en-produccion"
-);
+import { getJwtSecret } from "./env";
+import { pool } from "./db";
+import type { RowDataPacket } from "mysql2";
 
 const COOKIE_NAME = "mezo_session";
 export interface SessionPayload {
@@ -18,14 +17,14 @@ export async function createSession(payload: SessionPayload): Promise<string> {
         .setProtectedHeader({ alg: "HS256" })
         .setIssuedAt()
         .setExpirationTime("7d")
-        .sign(SECRET);
+        .sign(getJwtSecret());
 }
 
 export async function verifySession(
     token: string
 ): Promise<SessionPayload | null> {
     try {
-        const { payload } = await jwtVerify(token, SECRET);
+        const { payload } = await jwtVerify(token, getJwtSecret());
         return payload as unknown as SessionPayload;
     } catch {
         return null;
@@ -52,7 +51,16 @@ export async function getSession(): Promise<SessionPayload | null> {
     const cookieStore = await cookies();
     const token = cookieStore.get(COOKIE_NAME)?.value;
     if (!token) return null;
-    return await verifySession(token);
+    const session = await verifySession(token);
+    if (!session) return null;
+
+    // La sesión dura 7 días: si mientras tanto la usuaria fue dada de baja,
+    // se corta en el próximo pedido a la API.
+    const [rows] = await pool.query<RowDataPacket[]>(
+        "SELECT 1 FROM users WHERE id_user = ? AND active = 1 LIMIT 1",
+        [session.userId]
+    );
+    return rows.length > 0 ? session : null;
 }
 
-export const SESSION_COOKIE_NAME = COOKIE_NAME;
+export const SESSION_COOKIE_NAME = COOKIE_NAME;
