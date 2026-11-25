@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { pool } from "@/lib/db";
 import { createSession, setSessionCookie } from "@/lib/auth";
+import { clearEvents, countRecent, getClientIp, recordEvent } from "@/lib/rate-limit";
+import { verifyTurnstile } from "@/lib/turnstile";
 import type { RowDataPacket } from "mysql2";
 
 interface UserRow extends RowDataPacket {
@@ -12,9 +14,33 @@ interface UserRow extends RowDataPacket {
     role: "CEO" | "GERENTA";
 }
 
+// Máximo de contraseñas incorrectas por IP en la ventana de tiempo
+const MAX_FAILED_ATTEMPTS = 5;
+const WINDOW_MINUTES = 15;
+const BUCKET = "login_fail";
+
 export async function POST(req: NextRequest) {
     try {
-        const { email, password } = await req.json();
+        const { email, password, turnstileToken } = await req.json();
+        const ip = getClientIp(req);
+
+        // 1. Límite de intentos: con 5 fallos seguidos esa IP queda bloqueada 15 minutos
+        if ((await countRecent(BUCKET, ip, WINDOW_MINUTES)) >= MAX_FAILED_ATTEMPTS) {
+            return NextResponse.json(
+                {
+                    error: `Demasiados intentos fallidos. Esperá ${WINDOW_MINUTES} minutos y volvé a probar.`,
+                },
+                { status: 429, headers: { "Retry-After": String(WINDOW_MINUTES * 60) } }
+            );
+        }
+
+        // 2. Anti-spam (Cloudflare Turnstile, si está configurado)
+        if (!(await verifyTurnstile(turnstileToken, ip))) {
+            return NextResponse.json(
+                { error: "No pudimos verificar que sos una persona. Recargá la página e intentá de nuevo." },
+                { status: 400 }
+            );
+        }
 
         if (!email || !password) {
             return NextResponse.json(
@@ -29,22 +55,22 @@ export async function POST(req: NextRequest) {
             [String(email).trim().toLowerCase()]
         );
 
-        if (rows.length === 0) {
-            return NextResponse.json(
-                { error: "Credenciales inválidas" },
-                { status: 401 }
-            );
-        }
-
         const user = rows[0];
-        const passwordOk = await bcrypt.compare(password, user.password);
+        // Mismo mensaje si el email no existe o la contraseña está mal (no se delatan los mails registrados)
+        const passwordOk = user
+            ? await bcrypt.compare(String(password), user.password)
+            : false;
 
-        if (!passwordOk) {
+        if (!user || !passwordOk) {
+            await recordEvent(BUCKET, ip);
             return NextResponse.json(
                 { error: "Credenciales inválidas" },
                 { status: 401 }
             );
         }
+
+        // Entró bien: se borra el contador de fallos de esa IP
+        await clearEvents(BUCKET, ip);
 
         const token = await createSession({
             userId: user.id_user,
@@ -71,4 +97,4 @@ export async function POST(req: NextRequest) {
             { status: 500 }
         );
     }
-}
+}

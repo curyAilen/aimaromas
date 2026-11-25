@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
+import { ensureSchema } from "@/lib/schema";
+import { getSettings } from "@/lib/settings";
+import { deductStockForOrder } from "@/lib/stock";
 import { getSession } from "@/lib/auth";
 import type { RowDataPacket, ResultSetHeader } from "mysql2";
 
@@ -132,19 +135,10 @@ export async function POST(req: NextRequest) {
         );
 
         // Leer settings de envío
-        const [settingsRows] = await conn.query<RowDataPacket[]>(
-            "SELECT setting_value FROM settings WHERE setting_key = 'free_shipping_threshold'"
-        );
-        const freeShippingThreshold = settingsRows.length
-            ? Number(settingsRows[0].setting_value)
-            : 80000;
-
-        const [deliveryRows] = await conn.query<RowDataPacket[]>(
-            "SELECT setting_value FROM settings WHERE setting_key = 'delivery_cost'"
-        );
-        const deliveryCostBase = deliveryRows.length
-            ? Number(deliveryRows[0].setting_value)
-            : 5000;
+        await ensureSchema();
+        const shippingSettings = await getSettings(["free_shipping_threshold", "delivery_cost"], conn);
+        const freeShippingThreshold = Number(shippingSettings.free_shipping_threshold);
+        const deliveryCostBase = Number(shippingSettings.delivery_cost);
 
         // Calcular costo de envío
         let deliveryCost = 0;
@@ -238,6 +232,9 @@ export async function POST(req: NextRequest) {
                 ]
             );
         }
+
+        // Stock: lo que haya sale de stock; el resto queda "a pedido"
+        await deductStockForOrder(conn, idOrder);
 
         await conn.commit();
         conn.release();

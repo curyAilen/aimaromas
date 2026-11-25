@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePagination } from "@/components/ui/Pagination";
 import Link from "next/link";
 import {
     Search,
@@ -35,6 +36,8 @@ export function ResellerList() {
     const [resellers, setResellers] = useState<Reseller[]>([]);
     const [search, setSearch] = useState("");
     const [loading, setLoading] = useState(true);
+    // Máximo 15 revendedoras por página
+    const { pageItems: pagedResellers, pagination } = usePagination(resellers, [search]);
 
     async function loadResellers(query = "") {
         setLoading(true);
@@ -144,7 +147,7 @@ export function ResellerList() {
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                    {resellers.map((reseller) => (
+                    {pagedResellers.map((reseller) => (
                         <div
                             key={reseller.id_reseller}
                             className={`bg-white rounded-3xl shadow-card border border-gray-100/50 p-5 hover:shadow-lg transition-shadow ${reseller.active === 0 ? "opacity-60" : ""
@@ -239,6 +242,7 @@ export function ResellerList() {
                     ))}
                 </div>
             )}
+            {!loading && resellers.length > 0 && pagination}
         </div>
     );
 }

@@ -1,67 +1,41 @@
 import { NextRequest, NextResponse } from "next/server";
-import { pool } from "@/lib/db";
-import type { RowDataPacket } from "mysql2";
+import {
+    CATALOG_FIRST_PAGE,
+    listCategories,
+    listPublicProducts,
+} from "@/lib/catalog";
 
-// GET /api/public/products
+// GET /api/public/products?search=&category=&offset=0&limit=6
+// La tienda pide de a poco: 6 la primera vez y 3 por cada vez que se llega al final.
 export async function GET(req: NextRequest) {
     try {
         const { searchParams } = new URL(req.url);
-        const search = searchParams.get("search") || "";
-        const categoryId = searchParams.get("category") || "";
+        const search = (searchParams.get("search") || "").trim().slice(0, 100);
+        const categoryParam = Number(searchParams.get("category"));
+        const categoryId =
+            Number.isInteger(categoryParam) && categoryParam > 0 ? categoryParam : null;
 
-        let query = `
-      SELECT 
-        p.id_product,
-        p.name,
-        p.size_name,
-        p.size_cm,
-        p.price,
-        p.description,
-        p.stock_status,
-        c.id_category,
-        c.name AS category_name,
-        c.slug AS category_slug,
-        (
-          SELECT url FROM product_images 
-          WHERE id_product = p.id_product 
-          ORDER BY sort_order ASC, id_image ASC 
-          LIMIT 1
-        ) AS image_url
-      FROM products p
-      INNER JOIN categories c ON c.id_category = p.id_category
-      WHERE p.active = 1
-        AND p.stock_status != 'discontinued'
-    `;
-        const params: (string | number)[] = [];
+        const offsetParam = Number(searchParams.get("offset"));
+        const limitParam = Number(searchParams.get("limit"));
+        const offset = Number.isInteger(offsetParam) && offsetParam >= 0 ? offsetParam : 0;
+        const limit =
+            Number.isInteger(limitParam) && limitParam > 0
+                ? Math.min(limitParam, 24)
+                : CATALOG_FIRST_PAGE;
 
-        if (search) {
-            query += " AND p.name LIKE ?";
-            params.push(`%${search}%`);
-        }
+        const { products, total } = await listPublicProducts({ search, categoryId, offset, limit });
 
-        if (categoryId) {
-            query += " AND p.id_category = ?";
-            params.push(categoryId);
-        }
+        const body: Record<string, unknown> = {
+            products,
+            total,
+            hasMore: offset + products.length < total,
+        };
+        // Las categorías solo hacen falta en la primera carga
+        if (offset === 0) body.categories = await listCategories();
 
-        query += " ORDER BY p.createdAt DESC";
-
-        const [rows] = await pool.query<RowDataPacket[]>(query, params);
-
-        // Traer todas las categorías también
-        const [categories] = await pool.query<RowDataPacket[]>(
-            "SELECT id_category, name, slug FROM categories ORDER BY sort_order ASC"
-        );
-
-        return NextResponse.json({
-            products: rows,
-            categories,
-        });
+        return NextResponse.json(body);
     } catch (error) {
         console.error("Error en GET /api/public/products:", error);
-        return NextResponse.json(
-            { error: "Error interno del servidor" },
-            { status: 500 }
-        );
+        return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
     }
 }

@@ -24,6 +24,7 @@ export function ProductForm({ productId }: ProductFormProps) {
         price: "",
         description: "",
         active: true,
+        stock: "0",
         stock_status: "in_stock" as StockStatus,
     });
     const [images, setImages] = useState<ProductImage[]>([]);
@@ -63,6 +64,7 @@ export function ProductForm({ productId }: ProductFormProps) {
                     price: product.price || "",
                     description: product.description || "",
                     active: product.active === 1,
+                    stock: String(product.stock ?? 0),
                     stock_status: product.stock_status || "in_stock",
                 });
                 setImages(data.images || []);
@@ -178,6 +180,7 @@ export function ProductForm({ productId }: ProductFormProps) {
                     price: Number(form.price) || 0,
                     description: form.description,
                     active: form.active,
+                    stock: Number(form.stock) || 0,
                     stock_status: form.stock_status,
                 }),
             });
@@ -327,26 +330,40 @@ export function ProductForm({ productId }: ProductFormProps) {
                         </label>
                     </div>
 
-                    <Field label="Estado del stock">
-                        <select
-                            value={form.stock_status}
+                    <Field label="Stock (unidades)">
+                        <input
+                            type="number"
+                            min="0"
+                            value={form.stock}
+                            onChange={(e) =>
+                                setForm((p) => ({ ...p, stock: e.target.value }))
+                            }
+                            className="input"
+                        />
+                        <p className="text-[10px] text-text-secondary mt-1">
+                            Con stock la tienda muestra "entrega inmediata"; sin stock, "a
+                            pedido". Si el producto tiene fragancias, el stock se carga en
+                            cada fragancia (más abajo, en Variantes).
+                        </p>
+                    </Field>
+
+                    <div className="flex items-center gap-3">
+                        <input
+                            type="checkbox"
+                            id="discontinued"
+                            checked={form.stock_status === "discontinued"}
                             onChange={(e) =>
                                 setForm((p) => ({
                                     ...p,
-                                    stock_status: e.target.value as StockStatus,
+                                    stock_status: e.target.checked ? "discontinued" : "in_stock",
                                 }))
                             }
-                            className="input"
-                        >
-                            <option value="in_stock">Disponible</option>
-                            <option value="on_demand">
-                                A pedido (se muestra, se puede pedir)
-                            </option>
-                            <option value="discontinued">
-                                Discontinuo (se muestra pero no se puede pedir)
-                            </option>
-                        </select>
-                    </Field>
+                            className="w-4 h-4 rounded border-gray-300 text-accent-pink focus:ring-accent-pink/20"
+                        />
+                        <label htmlFor="discontinued" className="text-sm text-text-primary">
+                            Discontinuado (se oculta de la tienda)
+                        </label>
+                    </div>
                 </div>
 
                 {/* Imágenes */}

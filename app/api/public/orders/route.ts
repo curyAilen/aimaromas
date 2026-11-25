@@ -1,10 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
+import { ensureSchema } from "@/lib/schema";
+import { getSettings } from "@/lib/settings";
+import { deductStockForOrder } from "@/lib/stock";
+import { sendNewOrderEmail } from "@/lib/email";
+import { countRecent, getClientIp, recordEvent } from "@/lib/rate-limit";
+import { verifyTurnstile } from "@/lib/turnstile";
 import type { RowDataPacket, ResultSetHeader } from "mysql2";
 
 // Límites para evitar pedidos absurdos desde la tienda
 const MAX_ITEMS = 50;
 const MAX_QTY_PER_ITEM = 100;
+// Anti-spam: máximo de pedidos por IP por hora
+const MAX_ORDERS_PER_HOUR = 10;
+const ORDER_BUCKET = "public_order";
 
 interface IncomingItem {
     id_product: number;
@@ -58,6 +67,27 @@ export async function POST(req: NextRequest) {
     } catch {
         return NextResponse.json({ error: "Pedido inválido" }, { status: 400 });
     }
+
+    // Campo trampa: las personas no lo ven ni lo completan, los robots sí
+    if (typeof body?.website === "string" && body.website.trim() !== "") {
+        return NextResponse.json({ error: "Pedido inválido" }, { status: 400 });
+    }
+
+    const ip = getClientIp(req);
+    if ((await countRecent(ORDER_BUCKET, ip, 60)) >= MAX_ORDERS_PER_HOUR) {
+        return NextResponse.json(
+            { error: "Enviaste muchos pedidos seguidos. Probá de nuevo en un rato o escribinos por WhatsApp." },
+            { status: 429, headers: { "Retry-After": "3600" } }
+        );
+    }
+    if (!(await verifyTurnstile(body?.turnstileToken, ip))) {
+        return NextResponse.json(
+            { error: "No pudimos verificar que sos una persona. Recargá la página e intentá de nuevo." },
+            { status: 400 }
+        );
+    }
+
+    await ensureSchema();
 
     const name = String(body?.name ?? "").trim();
     const email = String(body?.email ?? "").trim().toLowerCase();
@@ -158,15 +188,9 @@ export async function POST(req: NextRequest) {
         // ------------------------------------------------------------
         // 2. Envío según la configuración
         // ------------------------------------------------------------
-        const [settingsRows] = await conn.query<RowDataPacket[]>(
-            "SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('free_shipping_threshold', 'delivery_cost')"
-        );
-        const settings: Record<string, string> = {};
-        for (const row of settingsRows) {
-            settings[row.setting_key] = row.setting_value;
-        }
-        const freeShippingThreshold = Number(settings.free_shipping_threshold) || 80000;
-        const deliveryCostBase = Number(settings.delivery_cost) || 5000;
+        const settings = await getSettings(["free_shipping_threshold", "delivery_cost"], conn);
+        const freeShippingThreshold = Number(settings.free_shipping_threshold);
+        const deliveryCostBase = Number(settings.delivery_cost);
         const deliveryCost =
             requiresDelivery && subtotal < freeShippingThreshold ? deliveryCostBase : 0;
         const total = subtotal + deliveryCost;
@@ -265,8 +289,33 @@ export async function POST(req: NextRequest) {
             );
         }
 
+        // Stock: lo que haya sale de stock (entrega inmediata); el resto queda "a pedido"
+        await deductStockForOrder(conn, idOrder);
+
         await conn.commit();
         conn.release();
+
+        await recordEvent(ORDER_BUCKET, ip).catch(() => undefined);
+
+        // Aviso por email al local (si falla, el pedido ya quedó guardado)
+        await sendNewOrderEmail({
+            id_order: idOrder,
+            client_name: name,
+            client_email: email,
+            client_phone: phone,
+            requires_delivery: requiresDelivery,
+            delivery_address: requiresDelivery ? deliveryAddress : null,
+            notes: finalNotes,
+            subtotal,
+            delivery_cost: deliveryCost,
+            total,
+            items: priced.map((i) => ({
+                product_name: i.product_name,
+                variant_scent: i.variant_scent,
+                quantity: i.quantity,
+                subtotal: i.subtotal,
+            })),
+        });
 
         // Se devuelve lo que quedó guardado, para que el mensaje de
         // WhatsApp muestre los precios reales y no los del carrito.

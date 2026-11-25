@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePagination } from "@/components/ui/Pagination";
 import Link from "next/link";
 import { Search, Plus, Pencil, Trash2, Cake, Eye } from "lucide-react";
 import type { Client } from "@/lib/types";
@@ -10,6 +11,8 @@ export function ClientList() {
     const [clients, setClients] = useState<Client[]>([]);
     const [search, setSearch] = useState("");
     const [loading, setLoading] = useState(true);
+    // Máximo 15 clientes por página
+    const { pageItems: pagedClients, pagination } = usePagination(clients, [search]);
 
     async function loadClients(query = "") {
         setLoading(true);
@@ -122,7 +125,7 @@ export function ClientList() {
                             </tr>
                         </thead>
                         <tbody>
-                            {clients.map((client) => (
+                            {pagedClients.map((client) => (
                                 <tr
                                     key={client.id_client}
                                     className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors"
@@ -187,6 +190,7 @@ export function ClientList() {
                     </table>
                 )}
             </div>
+            {!loading && clients.length > 0 && pagination}
         </div>
     );
 }

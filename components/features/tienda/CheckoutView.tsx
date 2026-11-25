@@ -14,6 +14,8 @@ import {
     ShoppingBag,
 } from "lucide-react";
 import { formatCurrency, buildOrderMessage, buildWhatsAppUrl } from "@/lib/whatsapp";
+import { DEFAULT_SETTINGS } from "@/lib/settings-defaults";
+import { Turnstile, turnstileConfigured } from "@/components/ui/Turnstile";
 import { useCart } from "@/lib/cart-context";
 
 export function CheckoutView() {
@@ -26,10 +28,13 @@ export function CheckoutView() {
         phone: "",
         delivery_address: "",
         notes: "",
+        website: "", // campo trampa anti-robots: queda oculto y vacío
     });
+    const [turnstileToken, setTurnstileToken] = useState("");
+    const [turnstileReset, setTurnstileReset] = useState(0);
     const [requiresDelivery, setRequiresDelivery] = useState(false);
-    const [freeShippingThreshold, setFreeShippingThreshold] = useState(80000);
-    const [deliveryCostBase, setDeliveryCostBase] = useState(5000);
+    const [freeShippingThreshold, setFreeShippingThreshold] = useState(Number(DEFAULT_SETTINGS.free_shipping_threshold));
+    const [deliveryCostBase, setDeliveryCostBase] = useState(Number(DEFAULT_SETTINGS.delivery_cost));
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState("");
 
@@ -40,10 +45,12 @@ export function CheckoutView() {
                 const res = await fetch("/api/public/settings");
                 const data = await res.json();
                 setFreeShippingThreshold(
-                    Number(data.settings?.free_shipping_threshold) || 80000
+                    Number(data.settings?.free_shipping_threshold) ||
+                        Number(DEFAULT_SETTINGS.free_shipping_threshold)
                 );
                 setDeliveryCostBase(
-                    Number(data.settings?.delivery_cost) || 5000
+                    Number(data.settings?.delivery_cost) ||
+                        Number(DEFAULT_SETTINGS.delivery_cost)
                 );
             } catch (error) {
                 console.error(error);
@@ -85,6 +92,11 @@ export function CheckoutView() {
             return;
         }
 
+        if (turnstileConfigured && !turnstileToken) {
+            setError("Completá la verificación de seguridad antes de enviar");
+            return;
+        }
+
         setSubmitting(true);
 
         try {
@@ -106,6 +118,8 @@ export function CheckoutView() {
                     requires_delivery: requiresDelivery,
                     delivery_address: form.delivery_address.trim(),
                     notes: form.notes.trim(),
+                    website: form.website,
+                    turnstileToken,
                     items: orderItems,
                 }),
             });
@@ -115,6 +129,7 @@ export function CheckoutView() {
             if (!res.ok) {
                 setError(data.error || "Error al procesar el pedido");
                 setSubmitting(false);
+                setTurnstileReset((n) => n + 1);
                 return;
             }
 
@@ -365,6 +380,25 @@ export function CheckoutView() {
                                 </div>
                             </div>
 
+                            {/* Campo trampa: invisible para las personas */}
+                            <div
+                                aria-hidden="true"
+                                className="absolute -left-[9999px] h-0 w-0 overflow-hidden"
+                            >
+                                <label htmlFor="website">No completar este campo</label>
+                                <input
+                                    id="website"
+                                    type="text"
+                                    name="website"
+                                    tabIndex={-1}
+                                    autoComplete="off"
+                                    value={form.website}
+                                    onChange={(e) => update("website", e.target.value)}
+                                />
+                            </div>
+
+                            <Turnstile onToken={setTurnstileToken} resetKey={turnstileReset} />
+
                             {error && (
                                 <div className="bg-red-50 border border-red-100 text-red-600 text-xs rounded-xl px-4 py-3">
                                     {error}
@@ -426,4 +460,4 @@ function Field({
             {children}
         </div>
     );
-}
+}

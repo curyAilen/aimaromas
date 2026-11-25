@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { ensureSchema } from "@/lib/schema";
+import { syncStockStatus } from "@/lib/stock";
+import { cleanLine, cleanParagraphs } from "@/lib/text";
 import type { RowDataPacket, ResultSetHeader } from "mysql2";
 
 export async function GET(req: NextRequest) {
@@ -9,6 +12,8 @@ export async function GET(req: NextRequest) {
         if (!session) {
             return NextResponse.json({ error: "No autorizado" }, { status: 401 });
         }
+
+        await ensureSchema();
 
         const { searchParams } = new URL(req.url);
         const search = searchParams.get("search") || "";
@@ -104,29 +109,34 @@ export async function POST(req: NextRequest) {
             tag,
         } = body;
 
-        if (!id_category || !name) {
+        const cleanName = cleanLine(name);
+        if (!id_category || !cleanName) {
             return NextResponse.json(
                 { error: "Categoría y nombre son obligatorios" },
                 { status: 400 }
             );
         }
 
+        await ensureSchema();
+        const stock = Math.max(0, Math.floor(Number(body.stock) || 0));
         const [result] = await pool.query<ResultSetHeader>(
             `INSERT INTO products 
-       (id_category, name, size_name, size_cm, price, description, active, stock_status, tag, createdAt, updatedAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+       (id_category, name, size_name, size_cm, price, description, active, stock, stock_status, tag, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
             [
                 id_category,
-                name,
-                size_name || null,
-                size_cm || null,
+                cleanName,
+                cleanLine(size_name) || null,
+                cleanLine(size_cm) || null,
                 price || 0,
-                description || null,
+                cleanParagraphs(description) || null,
                 active === false ? 0 : 1,
-                stock_status || "in_stock",
+                stock,
+                stock_status === "discontinued" ? "discontinued" : "in_stock",
                 tag || "aromas",
             ]
         );
+        await syncStockStatus(pool, [result.insertId]);
 
         return NextResponse.json(
             { ok: true, id_product: result.insertId },

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { ensureSchema } from "@/lib/schema";
+import { deductStockForOrder, restoreStockForOrder } from "@/lib/stock";
 import type { RowDataPacket } from "mysql2";
 
 interface Params {
@@ -123,6 +125,23 @@ export async function PUT(req: NextRequest, { params }: Params) {
             );
         }
 
+        // Stock: si se cancela, las unidades vuelven; si se reactiva, vuelven a salir
+        if (status) {
+            await ensureSchema();
+            const [current] = await conn.query<RowDataPacket[]>(
+                "SELECT status FROM orders WHERE id_order = ? LIMIT 1",
+                [id]
+            );
+            const previous = current[0]?.status as string | undefined;
+            if (previous && previous !== status) {
+                if (status === "cancelled") {
+                    await restoreStockForOrder(conn, Number(id));
+                } else if (previous === "cancelled") {
+                    await deductStockForOrder(conn, Number(id));
+                }
+            }
+        }
+
         // 2. Armar updates dinámicos
         const updates: string[] = [];
         const values: any[] = [];
@@ -176,6 +195,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
 // DELETE /api/orders/[id]
 export async function DELETE(req: NextRequest, { params }: Params) {
+    let conn: Awaited<ReturnType<typeof pool.getConnection>> | null = null;
     try {
         const session = await getSession();
         if (!session) {
@@ -184,10 +204,26 @@ export async function DELETE(req: NextRequest, { params }: Params) {
 
         const { id } = await params;
 
-        await pool.query("DELETE FROM orders WHERE id_order = ?", [id]);
+        // Al borrar el pedido, las unidades que habían salido de stock vuelven
+        await ensureSchema();
+        conn = await pool.getConnection();
+        await conn.beginTransaction();
+        await restoreStockForOrder(conn, Number(id));
+        await conn.query("DELETE FROM orders WHERE id_order = ?", [id]);
+        await conn.commit();
+        conn.release();
+        conn = null;
 
         return NextResponse.json({ ok: true });
     } catch (error) {
+        if (conn) {
+            try {
+                await conn.rollback();
+            } catch {
+                // sin transacción abierta
+            }
+            conn.release();
+        }
         console.error("Error en DELETE /api/orders/[id]:", error);
         return NextResponse.json(
             { error: "Error interno del servidor" },

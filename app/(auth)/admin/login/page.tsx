@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Turnstile, turnstileConfigured } from "@/components/ui/Turnstile";
 
 export default function LoginPage() {
     const router = useRouter();
@@ -9,18 +10,26 @@ export default function LoginPage() {
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
+    const [turnstileToken, setTurnstileToken] = useState("");
+    const [turnstileReset, setTurnstileReset] = useState(0);
 
     async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
         e.stopPropagation();
         setError("");
+
+        if (turnstileConfigured && !turnstileToken) {
+            setError("Completá la verificación de seguridad");
+            return;
+        }
+
         setLoading(true);
 
         try {
             const res = await fetch("/api/auth/login", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email, password }),
+                body: JSON.stringify({ email, password, turnstileToken }),
             });
 
             const data = await res.json();
@@ -28,6 +37,7 @@ export default function LoginPage() {
             if (!res.ok) {
                 setError(data.error || "Error al iniciar sesión");
                 setLoading(false);
+                setTurnstileReset((n) => n + 1);
                 return;
             }
 
@@ -86,6 +96,8 @@ export default function LoginPage() {
                             className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-accent-pink/50 focus:ring-2 focus:ring-accent-pink/10 transition-all"
                         />
                     </div>
+
+                    <Turnstile onToken={setTurnstileToken} resetKey={turnstileReset} />
 
                     {error && (
                         <div className="bg-red-50 border border-red-100 text-red-600 text-xs rounded-xl px-4 py-2.5">

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { ensureSchema } from "@/lib/schema";
+import { syncStockStatus } from "@/lib/stock";
+import { cleanLine } from "@/lib/text";
 import type { RowDataPacket, ResultSetHeader } from "mysql2";
 
 interface Params {
@@ -16,9 +19,10 @@ export async function GET(req: NextRequest, { params }: Params) {
         }
 
         const { id } = await params;
+        await ensureSchema();
 
         const [rows] = await pool.query<RowDataPacket[]>(
-            `SELECT id_variant, id_product, scent, active, createdAt, updatedAt
+            `SELECT id_variant, id_product, scent, stock, active, createdAt, updatedAt
  FROM product_variants
  WHERE id_product = ?
  ORDER BY scent ASC`,
@@ -45,7 +49,8 @@ export async function POST(req: NextRequest, { params }: Params) {
 
         const { id } = await params;
         const body = await req.json();
-        const { scent } = body;
+        const scent = cleanLine(body.scent);
+        const stock = Math.max(0, Math.floor(Number(body.stock) || 0));
 
         if (!scent) {
             return NextResponse.json(
@@ -69,9 +74,10 @@ export async function POST(req: NextRequest, { params }: Params) {
 
         const [result] = await pool.query<ResultSetHeader>(
             `INSERT INTO product_variants (id_product, scent, price, stock, active, createdAt, updatedAt)
-       VALUES (?, ?, 0, 0, 1, NOW(), NOW())`,
-            [id, scent]
+       VALUES (?, ?, 0, ?, 1, NOW(), NOW())`,
+            [id, scent, stock]
         );
+        await syncStockStatus(pool, [Number(id)]);
 
         return NextResponse.json(
             { ok: true, id_variant: result.insertId },

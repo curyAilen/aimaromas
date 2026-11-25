@@ -1,77 +1,36 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Minus, Plus, ShoppingBag, Check } from "lucide-react";
-import { formatCurrency } from "@/lib/whatsapp";
+import { ArrowLeft, Minus, Plus, ShoppingBag, Check, Zap, Clock, MessageCircle } from "lucide-react";
+import { buildWhatsAppUrl, formatCurrency } from "@/lib/whatsapp";
 import { useCart } from "@/lib/cart-context";
-
-interface Variant {
-    id_variant: number;
-    scent: string;
-}
+import { optimizeImage } from "@/lib/slug";
+import type { CatalogProduct, ProductVariantPublic } from "@/lib/catalog";
 
 interface ProductImage {
     id_image: number;
     url: string;
 }
 
-interface ProductData {
-    id_product: number;
-    name: string;
-    description: string | null;
-    price: string;
-    size_name: string | null;
-    size_cm: string | null;
-    stock_status: string;
-    category_name: string;
-}
-
 interface ProductDetailProps {
-    productId: string;
+    product: CatalogProduct & { stock: number };
+    images: ProductImage[];
+    variants: ProductVariantPublic[];
+    whatsappNumber: string;
 }
 
-export function ProductDetail({ productId }: ProductDetailProps) {
-    const router = useRouter();
+export function ProductDetail({ product, images, variants, whatsappNumber }: ProductDetailProps) {
     const { addItem } = useCart();
 
-    const [product, setProduct] = useState<ProductData | null>(null);
-    const [images, setImages] = useState<ProductImage[]>([]);
-    const [variants, setVariants] = useState<Variant[]>([]);
     const [selectedImage, setSelectedImage] = useState(0);
-    const [selectedVariant, setSelectedVariant] = useState<number | null>(null);
+    const [selectedVariant, setSelectedVariant] = useState<number | null>(
+        variants.length > 0 ? variants[0].id_variant : null
+    );
     const [quantity, setQuantity] = useState(1);
-    const [loading, setLoading] = useState(true);
     const [added, setAdded] = useState(false);
 
-    useEffect(() => {
-        async function load() {
-            try {
-                const res = await fetch(`/api/public/products/${productId}`);
-                const data = await res.json();
-                if (!res.ok) {
-                    setLoading(false);
-                    return;
-                }
-                setProduct(data.product);
-                setImages(data.images || []);
-                setVariants(data.variants || []);
-                if (data.variants?.length > 0) {
-                    setSelectedVariant(data.variants[0].id_variant);
-                }
-            } catch (error) {
-                console.error(error);
-            } finally {
-                setLoading(false);
-            }
-        }
-        load();
-    }, [productId]);
-
     function handleAddToCart() {
-        if (!product) return;
-
         const variant = variants.find((v) => v.id_variant === selectedVariant);
 
         addItem(
@@ -82,7 +41,7 @@ export function ProductDetail({ productId }: ProductDetailProps) {
                 variant_scent: variant?.scent || null,
                 price: Number(product.price),
                 image_url: images[0]?.url || null,
-                stock_status: product.stock_status,
+                stock_status: unitsAvailable >= quantity ? "in_stock" : "on_demand",
             },
             quantity
         );
@@ -91,37 +50,17 @@ export function ProductDetail({ productId }: ProductDetailProps) {
         setTimeout(() => setAdded(false), 2000);
     }
 
-    if (loading) {
-        return (
-            <div className="max-w-6xl mx-auto px-4 py-8">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div className="aspect-square bg-white rounded-3xl animate-pulse" />
-                    <div className="space-y-4">
-                        <div className="h-6 bg-gray-100 rounded w-1/2 animate-pulse" />
-                        <div className="h-4 bg-gray-100 rounded w-3/4 animate-pulse" />
-                        <div className="h-8 bg-gray-100 rounded w-1/3 animate-pulse" />
-                    </div>
-                </div>
-            </div>
-        );
-    }
+    // Stock de lo que está eligiendo: de la fragancia si tiene, o del producto
+    const selected = variants.find((v) => v.id_variant === selectedVariant);
+    const unitsAvailable = variants.length > 0 ? selected?.stock ?? 0 : product.stock;
+    const fullyAvailable = unitsAvailable >= quantity;
+    const partiallyAvailable = unitsAvailable > 0 && unitsAvailable < quantity;
 
-    if (!product) {
-        return (
-            <div className="max-w-6xl mx-auto px-4 py-16 text-center">
-                <p className="text-text-secondary">Producto no encontrado</p>
-                <Link
-                    href="/"
-                    className="inline-block mt-4 text-accent-pink hover:underline text-sm"
-                >
-                    Volver a la tienda
-                </Link>
-            </div>
-        );
-    }
-
-    const isOnDemand = product.stock_status === "on_demand";
-    const currentImage = images[selectedImage]?.url;
+    const inquiryUrl = buildWhatsAppUrl(
+        `Hola! Quiero consultar la demora de "${product.name}"${selected ? ` (${selected.scent})` : ""}. Gracias!`,
+        whatsappNumber
+    );
+    const currentImage = optimizeImage(images[selectedImage]?.url, "f_auto,q_auto,c_fill,ar_1:1,w_900");
 
     return (
         <div className="max-w-6xl mx-auto px-4 py-6 md:py-8 space-y-6">
@@ -139,9 +78,12 @@ export function ProductDetail({ productId }: ProductDetailProps) {
                 <div className="space-y-3">
                     <div className="aspect-square bg-gradient-soft rounded-3xl overflow-hidden">
                         {currentImage ? (
+                            // eslint-disable-next-line @next/next/no-img-element
                             <img
                                 src={currentImage}
-                                alt={product.name}
+                                alt={`${product.name} - ${product.category_name}`}
+                                width={900}
+                                height={900}
                                 className="w-full h-full object-cover"
                             />
                         ) : (
@@ -162,9 +104,13 @@ export function ProductDetail({ productId }: ProductDetailProps) {
                                             : "border-transparent"
                                         }`}
                                 >
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
                                     <img
-                                        src={img.url}
-                                        alt={`Vista ${i + 1}`}
+                                        src={optimizeImage(img.url, "f_auto,q_auto,c_fill,ar_1:1,w_160") ?? img.url}
+                                        alt={`${product.name} - vista ${i + 1}`}
+                                        width={160}
+                                        height={160}
+                                        loading="lazy"
                                         className="w-full h-full object-cover"
                                     />
                                 </button>
@@ -194,10 +140,41 @@ export function ProductDetail({ productId }: ProductDetailProps) {
                         {formatCurrency(product.price)}
                     </p>
 
-                    {isOnDemand && (
-                        <div className="bg-orange-50 border border-orange-100 rounded-2xl p-3 text-xs text-orange-700">
-                            ⏱️ Este producto es <b>a pedido</b>. Puede demorar unos días más
-                            en estar listo.
+                    {/* Disponibilidad según stock */}
+                    {fullyAvailable ? (
+                        <div className="bg-green-50 border border-green-100 rounded-2xl p-3 text-xs text-green-700 flex items-center gap-2">
+                            <Zap className="w-4 h-4 flex-shrink-0" />
+                            <span>
+                                <b>Entrega inmediata.</b> Lo tenemos listo para enviarte.
+                            </span>
+                        </div>
+                    ) : (
+                        <div className="bg-orange-50 border border-orange-100 rounded-2xl p-3 text-xs text-orange-700 space-y-2">
+                            <div className="flex items-start gap-2">
+                                <Clock className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                                <span>
+                                    {partiallyAvailable ? (
+                                        <>
+                                            Tenemos <b>{unitsAvailable}</b> para entrega inmediata y el
+                                            resto es <b>a pedido</b>.
+                                        </>
+                                    ) : (
+                                        <>
+                                            Este producto es <b>a pedido</b>.
+                                        </>
+                                    )}{" "}
+                                    Consultá las demoras por privado al WhatsApp.
+                                </span>
+                            </div>
+                            <a
+                                href={inquiryUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 font-semibold text-orange-800 hover:underline"
+                            >
+                                <MessageCircle className="w-3.5 h-3.5" />
+                                Consultar demora por WhatsApp
+                            </a>
                         </div>
                     )}
 
@@ -229,6 +206,9 @@ export function ProductDetail({ productId }: ProductDetailProps) {
                                             }`}
                                     >
                                         {v.scent}
+                                        {!v.in_stock && (
+                                            <span className="ml-1.5 text-[10px] opacity-70">a pedido</span>
+                                        )}
                                     </button>
                                 ))}
                             </div>

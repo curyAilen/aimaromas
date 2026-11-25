@@ -1,26 +1,16 @@
 import { NextResponse } from "next/server";
-import { pool } from "@/lib/db";
-import type { RowDataPacket } from "mysql2";
+import { ensureSchema } from "@/lib/schema";
+import { getSettings, PUBLIC_SETTING_KEYS } from "@/lib/settings";
 
 // GET /api/public/settings
+// Solo datos que puede ver cualquier visitante (envío y WhatsApp). Nunca el email del aviso.
 export async function GET() {
     try {
-        const [rows] = await pool.query<RowDataPacket[]>(
-            `SELECT setting_key, setting_value FROM settings 
-       WHERE setting_key IN ('free_shipping_threshold', 'delivery_cost')`
-        );
-
-        const settings: Record<string, string> = {};
-        for (const row of rows) {
-            settings[row.setting_key] = row.setting_value;
-        }
-
+        await ensureSchema();
+        const settings = await getSettings(PUBLIC_SETTING_KEYS);
         return NextResponse.json({ settings });
     } catch (error) {
         console.error("Error en GET /api/public/settings:", error);
-        return NextResponse.json(
-            { error: "Error interno del servidor" },
-            { status: 500 }
-        );
+        return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
     }
 }
