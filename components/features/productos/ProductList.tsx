@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { formatCurrency } from "@/lib/whatsapp";
 import type { Product, Category, ProductVariant } from "@/lib/types";
+import { CsvExportButton } from "@/components/ui/CsvExportButton";
 
 type ViewMode = "card" | "list";
 
@@ -179,13 +180,22 @@ export function ProductList() {
                         </button>
                     </div>
 
-                    <Link
-                        href="/admin/catalogo/nuevo"
-                        className="flex items-center gap-2 bg-gradient-main text-white rounded-full px-5 py-2.5 text-sm font-medium hover:opacity-90 transition-all active:scale-95"
-                    >
-                        <Plus className="w-4 h-4" />
-                        Nuevo producto
-                    </Link>
+                    <div className="flex items-center gap-3">
+                        <CsvExportButton
+                            label="Exportar productos"
+                            files={[
+                                { label: "Productos", type: "productos" },
+                                { label: "Variantes por fragancia", type: "variantes" },
+                            ]}
+                        />
+                        <Link
+                            href="/admin/catalogo/nuevo"
+                            className="flex items-center gap-2 bg-gradient-main text-white rounded-full px-5 py-2.5 text-sm font-medium hover:opacity-90 transition-all active:scale-95"
+                        >
+                            <Plus className="w-4 h-4" />
+                            Nuevo producto
+                        </Link>
+                    </div>
                 </div>
             </div>
 
