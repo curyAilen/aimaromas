@@ -79,6 +79,8 @@ export interface Product {
     description: string | null;
     active: number;
     stock_status: StockStatus;
+    /** Unidades para entrega inmediata (si tiene fragancias, el stock está en cada una) */
+    stock?: number;
     createdAt: string;
     updatedAt: string;
     category_name?: string;
@@ -94,6 +96,7 @@ export interface ProductInput {
     price: number;
     description?: string;
     active?: boolean;
+    stock?: number;
     stock_status?: StockStatus;
 }
 export interface ProductImage {

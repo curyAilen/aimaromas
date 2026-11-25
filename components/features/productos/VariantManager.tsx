@@ -7,6 +7,7 @@ interface Variant {
     id_variant: number;
     id_product: number;
     scent: string;
+    stock: number;
     active: number;
     createdAt: string;
     updatedAt: string;
@@ -85,6 +86,23 @@ export function VariantManager({ productId }: VariantManagerProps) {
         }
     }
 
+    async function handleStockChange(id: number, value: string) {
+        const stock = Math.max(0, Math.floor(Number(value) || 0));
+        setVariants((prev) =>
+            prev.map((v) => (v.id_variant === id ? { ...v, stock } : v))
+        );
+        try {
+            await fetch(`/api/variants/${id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ stock }),
+            });
+        } catch (error) {
+            console.error(error);
+            setError("No se pudo guardar el stock");
+        }
+    }
+
     async function handleDelete(id: number, scent: string) {
         if (!confirm(`¿Eliminar la variante "${scent}"?`)) return;
 
@@ -115,7 +133,8 @@ export function VariantManager({ productId }: VariantManagerProps) {
                         Variantes por fragancia
                     </h2>
                     <p className="text-xs text-text-secondary">
-                        Seleccioná las fragancias disponibles para este producto
+                        Elegí las fragancias y cargá cuántas unidades hay de cada una. Con
+                        stock se muestra "entrega inmediata"; sin stock, "a pedido".
                     </p>
                 </div>
             </div>
@@ -136,6 +155,18 @@ export function VariantManager({ productId }: VariantManagerProps) {
                                     <span className="text-sm font-medium text-text-primary">
                                         {variant.scent}
                                     </span>
+                                    <label className="flex items-center gap-1 text-[10px] text-text-secondary">
+                                        Stock
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            defaultValue={variant.stock ?? 0}
+                                            onBlur={(e) =>
+                                                handleStockChange(variant.id_variant, e.target.value)
+                                            }
+                                            className="w-14 rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-text-primary outline-none focus:border-accent-pink/50"
+                                        />
+                                    </label>
                                     <button
                                         onClick={() => handleDelete(variant.id_variant, variant.scent)}
                                         className="w-6 h-6 rounded-full hover:bg-white/60 flex items-center justify-center transition-colors"

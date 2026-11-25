@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { ensureSchema } from "@/lib/schema";
+import { syncStockStatus } from "@/lib/stock";
 
 interface Params {
     params: Promise<{ id: string }>;
@@ -25,10 +27,13 @@ export async function PUT(req: NextRequest, { params }: Params) {
             );
         }
 
+        await ensureSchema();
+        const units = Math.max(0, Math.floor(Number(stock) || 0));
         await pool.query(
             "UPDATE products SET stock = ?, updatedAt = NOW() WHERE id_product = ?",
-            [Number(stock), id]
+            [units, id]
         );
+        await syncStockStatus(pool, [Number(id)]);
 
         return NextResponse.json({ ok: true });
     } catch (error) {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePagination } from "@/components/ui/Pagination";
 import { Cake, MessageCircle, Phone, Mail, Sparkles } from "lucide-react";
 import { formatCurrency } from "@/lib/whatsapp";
 
@@ -31,6 +32,8 @@ export function BirthdayList() {
     const [settings, setSettings] = useState<Settings | null>(null);
     const [range, setRange] = useState<Range>("month");
     const [loading, setLoading] = useState(true);
+    // Máximo 15 cumpleaños por página
+    const { pageItems: pagedClients, pagination } = usePagination(clients, [range]);
 
     async function load() {
         setLoading(true);
@@ -121,7 +124,7 @@ export function BirthdayList() {
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    {clients.map((client) => (
+                    {pagedClients.map((client) => (
                         <div
                             key={client.id_client}
                             className={`bg-white rounded-3xl shadow-card border p-5 ${client.is_today
@@ -196,6 +199,7 @@ export function BirthdayList() {
                     ))}
                 </div>
             )}
+            {!loading && clients.length > 0 && pagination}
         </div>
     );
 }

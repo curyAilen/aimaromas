@@ -1,6 +1,13 @@
 import type { Order, OrderItem } from "./types";
+import { DEFAULT_SETTINGS } from "./settings-defaults";
 
-const WHATSAPP_NUMBER = "5491173735090";
+// El número real se lee de Configuración (ver WhatsAppConfig). Mientras carga, se usa el valor por defecto.
+let whatsappNumber: string = DEFAULT_SETTINGS.whatsapp_number;
+
+export function setWhatsAppNumber(value: string): void {
+    const digits = value.replace(/\D/g, "");
+    if (digits) whatsappNumber = digits;
+}
 
 export function formatCurrency(value: number | string): string {
     const num = typeof value === "string" ? Number(value) : value;
@@ -53,7 +60,7 @@ export function buildOrderMessage(
     return lines.join("\n");
 }
 
-export function buildWhatsAppUrl(message: string): string {
+export function buildWhatsAppUrl(message: string, number: string = whatsappNumber): string {
     const encoded = encodeURIComponent(message);
-    return `https://wa.me/${WHATSAPP_NUMBER}?text=${encoded}`;
+    return `https://wa.me/${number.replace(/\D/g, "") || whatsappNumber}?text=${encoded}`;
 }

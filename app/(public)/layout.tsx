@@ -1,5 +1,6 @@
 import { CartProvider } from "@/lib/cart-context";
 import { PublicHeader } from "@/components/layout/PublicHeader";
+import { WhatsAppConfig } from "@/components/layout/WhatsAppConfig";
 
 export default function PublicLayout({
     children,
@@ -9,6 +10,7 @@ export default function PublicLayout({
     return (
         <CartProvider>
             <div className="min-h-screen bg-bg-main">
+                <WhatsAppConfig />
                 <PublicHeader />
                 <main className="pb-12">{children}</main>
             </div>

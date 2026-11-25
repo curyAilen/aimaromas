@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePagination } from "@/components/ui/Pagination";
 import Link from "next/link";
 import {
     Search,
@@ -30,6 +31,14 @@ export function OrderList() {
     const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
     const [from, setFrom] = useState(firstOfMonth.toISOString().slice(0, 10));
     const [to, setTo] = useState(today.toISOString().slice(0, 10));
+    // Máximo 15 pedidos por página
+    const { pageItems: pagedOrders, pagination } = usePagination(orders, [
+        search,
+        statusFilter,
+        paymentFilter,
+        from,
+        to,
+    ]);
 
     async function loadOrders(query = "", status = "", payment = paymentFilter) {
         setLoading(true);
@@ -210,7 +219,7 @@ export function OrderList() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {orders.map((order: any) => {
+                                {pagedOrders.map((order: any) => {
                                     const isCancelled = order.status === "cancelled";
                                     const isPaid = !!order.paid_at;
                                     const isDelivered = !!order.delivered_at;
@@ -384,6 +393,7 @@ export function OrderList() {
                     </div>
                 </div>
             )}
+            {!loading && orders.length > 0 && pagination}
         </div>
     );
 }

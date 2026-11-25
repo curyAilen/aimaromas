@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePagination } from "@/components/ui/Pagination";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -59,6 +60,8 @@ export function ClientDetail({ clientId }: ClientDetailProps) {
     const [client, setClient] = useState<Client | null>(null);
     const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
+    // Máximo 15 pedidos por página
+    const { pageItems: pagedOrders, pagination } = usePagination(orders);
 
     useEffect(() => {
         async function load() {
@@ -379,7 +382,7 @@ export function ClientDetail({ clientId }: ClientDetailProps) {
                             </tr>
                         </thead>
                         <tbody>
-                            {orders.map((order) => {
+                            {pagedOrders.map((order) => {
                                 const st = statusLabels[order.status] || statusLabels.pending;
                                 return (
                                     <tr
@@ -445,6 +448,7 @@ export function ClientDetail({ clientId }: ClientDetailProps) {
                     </table>
                 )}
             </div>
+            {orders.length > 0 && <div className="px-2">{pagination}</div>}
         </div>
     );
 }

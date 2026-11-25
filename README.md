@@ -1,131 +1,50 @@
-# AIMA Aromas — Panel de Administración + Tienda Pública
+# AIMA Aromas
 
-Plataforma de gestión para **AIMA Aromas** (jabones y velas artesanales) con panel de administración y tienda pública.
+Tienda y panel de administración de AIMA Aromas (velas de soja, wax melts y jabones artesanales).
 
----
+## Stack
 
-## 🛠️ Stack Técnico
-
-- **Framework:** Next.js 16 (App Router) + TypeScript
-- **Estilos:** Tailwind CSS + Framer Motion
-- **Base de datos:** MariaDB (Railway) + mysql2
+- **Framework:** Next.js 16 (App Router) + TypeScript + Tailwind
+- **Base de datos:** TiDB Cloud (compatible con MySQL) vía `mysql2`
 - **Imágenes:** Cloudinary
-- **Autenticación:** JWT (jose) + bcryptjs
-- **Gráficos:** Recharts
-- **Hosting:** Vercel (app) + Railway (DB)
-- **Dominio:** aimaaromas.com (NIC Argentina)
+- **Hosting:** Vercel
+- **Mails de pedidos:** Resend (opcional)
+- **Anti-spam:** límite por IP + honeypot + Cloudflare Turnstile (opcional)
 
----
+## Funciones principales
 
-## 📦 Estructura del Proyecto
-app/
-├── (auth)/ # Login (sin sidebar)
-│ └── admin/login/
-├── (public)/ # Tienda pública
-│ ├── page.tsx # Home con grid de productos
-│ ├── producto/[id]/ # Detalle del producto
-│ ├── carrito/ # Carrito
-│ └── checkout/ # Checkout
-├── admin/ # Panel de administración
-│ ├── page.tsx # Dashboard
-│ ├── pedidos/ # Gestión de pedidos
-│ ├── catalogo/ # Gestión de productos
-│ ├── clientes/ # Gestión de clientes
-│ ├── cumpleanos/ # Cumpleaños
-│ ├── estadisticas/ # Estadísticas
-│ └── configuracion/ # Configuración (solo CEO)
-└── api/ # Endpoints de la API
+- Catálogo público con carga progresiva (6 productos y luego de a 3 al hacer scroll).
+- Página por producto con título, imagen y vista previa propios al compartir (WhatsApp, Instagram), `sitemap.xml` y `robots.txt`.
+- Control de stock: con stock se muestra "Entrega inmediata"; sin stock, "A pedido" y se consultan demoras por WhatsApp.
+- Pedidos desde la web con aviso por mail (destinatario configurable en el panel).
+- Panel `/admin`: productos, pedidos, clientes, revendedoras, cumpleaños, estadísticas y configuración (WhatsApp, mail de avisos, envío).
+- Login con bloqueo tras 5 intentos fallidos por IP (15 minutos).
 
-components/
-├── layout/ # Header, Sidebar, PublicHeader, NotificationPanel
-├── ui/ # Card, Button, Tooltip
-├── charts/ # DotGrid, RadialBarChart
-└── features/ # Componentes por módulo (clientes, pedidos, etc.)
-
-lib/
-├── db.ts # Pool de conexiones MySQL
-├── auth.ts # Funciones de sesión (JWT)
-├── cart-context.tsx # Context del carrito
-├── cloudinary.ts # Configuración de Cloudinary
-├── whatsapp.ts # Utilidades de WhatsApp
-└── types.ts # Tipos TypeScript
-
----
-
-## 🚀 Flujo de trabajo en LOCAL
-
-### 1. Clonar el repositorio
+## Puesta en marcha
 
 ```bash
-git clone https://github.com/curyAilen/aimaromas.git
-cd aimaromas
 npm install
-
-# Base de datos (Railway)
-DB_HOST=gondola.proxy.rlwy.net
-DB_PORT=58796
-DB_USER=root
-DB_PASSWORD=tu_password_aqui
-DB_NAME=railway
-
-# JWT
-JWT_SECRET=un_string_muy_largo_y_aleatorio_minimo_32_caracteres
-
-# Cloudinary
-CLOUDINARY_CLOUD_NAME=tu_cloud_name
-CLOUDINARY_API_KEY=tu_api_key
-CLOUDINARY_API_SECRET=tu_api_secret
-
-# Cloudinary - Upload directo desde el browser
-NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=tu_cloud_name
-NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET=img_productos
-
-# URL del sitio
-NEXT_PUBLIC_SITE_URL=http://localhost:3000
-
-###  2. Correr en desarrollo
+cp .env.example .env   # completar los valores
 npm run dev
-Abrí http://localhost:3000
+```
 
-🚢 SUBIR CAMBIOS A PRODUCCIÓN
+Las tablas faltantes y las columnas nuevas (stock, límite de intentos) se crean solas al primer uso.
 
-npm run build
-git status
-git add .
-git commit -m "Descripción breve del cambio"
-git push origin main
+## Variables de entorno
 
-📊 URLs importantes
-Servicio	URL
-App en producción	https://aimaaromas.com
-Admin en producción	https://aimaaromas.com/admin
-Deploy preview	https://aimaromas.vercel.app
-Vercel dashboard	https://vercel.com/dashboard
-Railway dashboard	https://railway.app/dashboard
-Cloudinary console	https://cloudinary.com/console
-GitHub repo	https://github.com/curyAilen/aimaromas
+Ver `.env.example`; cada variable está comentada. **Nunca subas el archivo `.env` ni valores reales al repositorio.**
 
-🗄️ Base de datos
-Motor: MariaDB
-Hosting: Railway
-Host: gondola.proxy.rlwy.net
-Puerto: 58796
-Base: railway
-Usuario: root
-Para conectarse desde DBeaver
-Nueva conexión → MySQL.
-Server Host: gondola.proxy.rlwy.net
-Port: 58796
-Database: railway
-Username: root
-Password: (tu password de Railway)
+## Servicios externos
 
-🖼️ Subida de imágenes
-Las imágenes NO se suben a Vercel (por el límite de 4.5 MB de las serverless functions). Se suben directo a Cloudinary desde el navegador usando un Upload Preset unsigned.
+| Servicio | Para qué | Dónde |
+| --- | --- | --- |
+| TiDB Cloud | Base de datos | https://tidbcloud.com |
+| Vercel | Hosting y variables de entorno | https://vercel.com |
+| Cloudinary | Imágenes (subida directa desde el navegador con preset *unsigned*) | https://cloudinary.com/console |
+| Resend | Mail por pedido nuevo | https://resend.com |
+| Cloudflare Turnstile | Anti-spam (opcional) | https://dash.cloudflare.com |
 
-Configuración en Cloudinary
-Settings → Upload → Upload presets.
-Crear preset "img_productos" con:
-Signing Mode: Unsigned
-Folder: mezo/productos
+## Notas
 
+- TiDB Cloud Starter se "duerme" sin uso: la primera visita después de un rato puede tardar unos segundos. No se pierden datos.
+- Los archivos `.php` de la raíz son de una versión anterior del sitio y no forman parte de la app actual.

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePagination } from "@/components/ui/Pagination";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -91,6 +92,8 @@ export function ResellerDetail({ resellerId }: ResellerDetailProps) {
     const [stats, setStats] = useState<Stats | null>(null);
     const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
+    // Máximo 15 pedidos por página
+    const { pageItems: pagedOrders, pagination } = usePagination(orders);
     const [updatingCommission, setUpdatingCommission] = useState<number | null>(
         null
     );
@@ -501,7 +504,7 @@ export function ResellerDetail({ resellerId }: ResellerDetailProps) {
                                 </tr>
                             </thead>
                             <tbody>
-                                {orders.map((order) => {
+                                {pagedOrders.map((order) => {
                                     const isPaid = !!order.paid_at;
                                     const isDelivered = !!order.delivered_at;
                                     const commissionPaid = order.commission_paid === 1;
@@ -588,6 +591,7 @@ export function ResellerDetail({ resellerId }: ResellerDetailProps) {
                     </div>
                 )}
             </div>
+            {orders.length > 0 && <div className="px-2">{pagination}</div>}
         </div>
     );
 }

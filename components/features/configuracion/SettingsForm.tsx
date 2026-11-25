@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Save, Truck, Cake, Loader2 } from "lucide-react";
+import { Save, Truck, Cake, Loader2, MessageCircle, Mail } from "lucide-react";
+import { DEFAULT_SETTINGS } from "@/lib/settings-defaults";
 
 export function SettingsForm() {
     const [settings, setSettings] = useState<Record<string, string>>({});
@@ -98,7 +99,7 @@ export function SettingsForm() {
                             <input
                                 type="number"
                                 min="0"
-                                value={settings.free_shipping_threshold || "80000"}
+                                value={settings.free_shipping_threshold || DEFAULT_SETTINGS.free_shipping_threshold}
                                 onChange={(e) =>
                                     update("free_shipping_threshold", e.target.value)
                                 }
@@ -113,12 +114,69 @@ export function SettingsForm() {
                             <input
                                 type="number"
                                 min="0"
-                                value={settings.delivery_cost || "5000"}
+                                value={settings.delivery_cost || DEFAULT_SETTINGS.delivery_cost}
                                 onChange={(e) => update("delivery_cost", e.target.value)}
                                 className="input"
                             />
                             <p className="text-[10px] text-text-secondary mt-1">
                                 Se cobra si el pedido NO supera el monto de envío gratis
+                            </p>
+                        </Field>
+                    </div>
+                </section>
+
+                {/* Contacto y avisos */}
+                <section className="bg-white rounded-3xl shadow-card border border-gray-100/50 p-6 space-y-4">
+                    <div className="flex items-center gap-3 pb-4 border-b border-gray-100">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-soft flex items-center justify-center">
+                            <MessageCircle className="w-5 h-5 text-accent-pink" />
+                        </div>
+                        <div>
+                            <h2 className="text-base font-semibold text-text-primary">
+                                Contacto y avisos
+                            </h2>
+                            <p className="text-xs text-text-secondary">
+                                WhatsApp de la tienda y mail donde llegan los pedidos nuevos
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Field label="WhatsApp de la tienda">
+                            <input
+                                type="tel"
+                                inputMode="numeric"
+                                value={settings.whatsapp_number ?? DEFAULT_SETTINGS.whatsapp_number}
+                                onChange={(e) => update("whatsapp_number", e.target.value)}
+                                placeholder="5491112345678"
+                                className="input"
+                            />
+                            <p className="text-[10px] text-text-secondary mt-1">
+                                Con código de país y sin espacios ni signos (Argentina: 549 + área +
+                                número). Es el número al que se envían los pedidos y las consultas
+                                de demora.
+                            </p>
+                        </Field>
+
+                        <Field label="Mail para avisos de pedidos nuevos">
+                            <div className="relative">
+                                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
+                                <input
+                                    type="email"
+                                    value={
+                                        settings.order_notification_email ??
+                                        DEFAULT_SETTINGS.order_notification_email
+                                    }
+                                    onChange={(e) =>
+                                        update("order_notification_email", e.target.value)
+                                    }
+                                    placeholder="pedidos@tumarca.com"
+                                    className="input pl-10"
+                                />
+                            </div>
+                            <p className="text-[10px] text-text-secondary mt-1">
+                                Cada pedido que llega desde la tienda se avisa a este mail. Podés
+                                cambiarlo cuando tengas el mail de la marca.
                             </p>
                         </Field>
                     </div>

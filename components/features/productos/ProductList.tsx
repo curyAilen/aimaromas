@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePagination } from "@/components/ui/Pagination";
 import Link from "next/link";
 import {
     Search,
@@ -40,6 +41,11 @@ export function ProductList() {
     const [search, setSearch] = useState("");
     const [categoryFilter, setCategoryFilter] = useState("");
     const [loading, setLoading] = useState(true);
+    // Máximo 15 productos por página
+    const { pageItems: pagedProducts, pagination } = usePagination(products, [
+        search,
+        categoryFilter,
+    ]);
     const [updatingStockId, setUpdatingStockId] = useState<number | null>(null);
     const [stockDrafts, setStockDrafts] = useState<Record<number, string>>({});
 
@@ -244,10 +250,10 @@ export function ProductList() {
                     Cargando...
                 </div>
             ) : viewMode === "card" ? (
-                <CardView products={products} onDelete={handleDelete} />
+                <CardView products={pagedProducts} onDelete={handleDelete} />
             ) : (
                 <ListView
-                    products={products}
+                    products={pagedProducts}
                     onDelete={handleDelete}
                     onStockUpdate={handleStockUpdate}
                     updatingStockId={updatingStockId}
@@ -255,6 +261,7 @@ export function ProductList() {
                     setStockDrafts={setStockDrafts}
                 />
             )}
+            {!loading && hydrated && products.length > 0 && pagination}
         </div>
     );
 }

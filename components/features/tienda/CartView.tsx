@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { DEFAULT_SETTINGS } from "@/lib/settings-defaults";
 import Link from "next/link";
 import { ArrowLeft, Trash2, ShoppingBag, Truck } from "lucide-react";
 import { formatCurrency } from "@/lib/whatsapp";
@@ -8,8 +9,8 @@ import { useCart } from "@/lib/cart-context";
 
 export function CartView() {
     const { items, removeItem, updateQuantity, subtotal, totalItems } = useCart();
-    const [freeShippingThreshold, setFreeShippingThreshold] = useState(80000);
-    const [deliveryCost, setDeliveryCost] = useState(5000);
+    const [freeShippingThreshold, setFreeShippingThreshold] = useState(Number(DEFAULT_SETTINGS.free_shipping_threshold));
+    const [deliveryCost, setDeliveryCost] = useState(Number(DEFAULT_SETTINGS.delivery_cost));
 
     useEffect(() => {
         async function loadSettings() {
@@ -17,9 +18,10 @@ export function CartView() {
                 const res = await fetch("/api/public/settings");
                 const data = await res.json();
                 setFreeShippingThreshold(
-                    Number(data.settings?.free_shipping_threshold) || 80000
+                    Number(data.settings?.free_shipping_threshold) ||
+                        Number(DEFAULT_SETTINGS.free_shipping_threshold)
                 );
-                setDeliveryCost(Number(data.settings?.delivery_cost) || 5000);
+                setDeliveryCost(Number(data.settings?.delivery_cost) || Number(DEFAULT_SETTINGS.delivery_cost));
             } catch (error) {
                 console.error(error);
             }
