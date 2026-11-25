@@ -14,6 +14,7 @@ import {
     DollarSign,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/whatsapp";
+import { CsvExportButton } from "@/components/ui/CsvExportButton";
 
 interface Reseller {
     id_reseller: number;
@@ -99,13 +100,22 @@ export function ResellerList() {
                         {resellers.length} revendedora{resellers.length !== 1 ? "s" : ""}
                     </p>
                 </div>
-                <Link
-                    href="/admin/revendedoras/nuevo"
-                    className="flex items-center gap-2 bg-gradient-main text-white rounded-full px-5 py-2.5 text-sm font-medium hover:opacity-90 transition-all active:scale-95"
-                >
-                    <Plus className="w-4 h-4" />
-                    Nueva revendedora
-                </Link>
+                <div className="flex items-center gap-3">
+                    <CsvExportButton
+                        label="Exportar revendedoras"
+                        files={[
+                            { label: "Revendedoras con totales y comisiones", type: "revendedoras" },
+                            { label: "Comisiones por pedido", type: "comisiones" },
+                        ]}
+                    />
+                    <Link
+                        href="/admin/revendedoras/nuevo"
+                        className="flex items-center gap-2 bg-gradient-main text-white rounded-full px-5 py-2.5 text-sm font-medium hover:opacity-90 transition-all active:scale-95"
+                    >
+                        <Plus className="w-4 h-4" />
+                        Nueva revendedora
+                    </Link>
+                </div>
             </div>
 
             <div className="relative">

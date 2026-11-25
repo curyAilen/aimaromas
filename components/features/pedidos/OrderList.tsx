@@ -16,11 +16,13 @@ import {
 } from "lucide-react";
 import { formatCurrency } from "@/lib/whatsapp";
 import type { Order } from "@/lib/types";
+import { CsvExportButton } from "@/components/ui/CsvExportButton";
 
 export function OrderList() {
     const [orders, setOrders] = useState<Order[]>([]);
     const [search, setSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState("");
+    const [paymentFilter, setPaymentFilter] = useState("");
     const [loading, setLoading] = useState(true);
     const [updatingId, setUpdatingId] = useState<number | null>(null);
 
@@ -29,12 +31,13 @@ export function OrderList() {
     const [from, setFrom] = useState(firstOfMonth.toISOString().slice(0, 10));
     const [to, setTo] = useState(today.toISOString().slice(0, 10));
 
-    async function loadOrders(query = "", status = "") {
+    async function loadOrders(query = "", status = "", payment = paymentFilter) {
         setLoading(true);
         try {
             const params = new URLSearchParams();
             if (query) params.set("search", query);
             if (status) params.set("status", status);
+            if (payment) params.set("payment", payment);
             params.set("from", from);
             params.set("to", to);
 
@@ -54,10 +57,10 @@ export function OrderList() {
 
     useEffect(() => {
         const timer = setTimeout(() => {
-            loadOrders(search, statusFilter);
+            loadOrders(search, statusFilter, paymentFilter);
         }, 300);
         return () => clearTimeout(timer);
-    }, [search, statusFilter]);
+    }, [search, statusFilter, paymentFilter]);
 
     async function updateOrder(id: number, body: Record<string, unknown>) {
         setUpdatingId(id);
@@ -111,13 +114,21 @@ export function OrderList() {
                         {orders.length} pedido{orders.length !== 1 ? "s" : ""} en el período
                     </p>
                 </div>
-                <Link
-                    href="/admin/pedidos/nuevo"
-                    className="flex items-center gap-2 bg-gradient-main text-white rounded-full px-5 py-2.5 text-sm font-medium hover:opacity-90 transition-all active:scale-95"
-                >
-                    <Plus className="w-4 h-4" />
-                    Nuevo pedido
-                </Link>
+                <div className="flex items-center gap-3">
+                    <CsvExportButton
+                        label="Exportar pedidos"
+                        files={[
+                            { label: "Pedidos (todos los datos)", type: "pedidos" },
+                        ]}
+                    />
+                    <Link
+                        href="/admin/pedidos/nuevo"
+                        className="flex items-center gap-2 bg-gradient-main text-white rounded-full px-5 py-2.5 text-sm font-medium hover:opacity-90 transition-all active:scale-95"
+                    >
+                        <Plus className="w-4 h-4" />
+                        Nuevo pedido
+                    </Link>
+                </div>
             </div>
 
             <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3">
@@ -159,6 +170,16 @@ export function OrderList() {
                     <option value="confirmed">Confirmado</option>
                     <option value="delivered">Entregado</option>
                     <option value="cancelled">Cancelado</option>
+                </select>
+                <select
+                    value={paymentFilter}
+                    onChange={(e) => setPaymentFilter(e.target.value)}
+                    className="px-4 py-2.5 bg-white rounded-xl border border-gray-100 text-sm outline-none focus:border-accent-pink/50 transition-colors"
+                >
+                    <option value="">Pagos y entregas: todos</option>
+                    <option value="paid">Abonados</option>
+                    <option value="delivered">Entregados</option>
+                    <option value="unpaid">Pendientes de pago</option>
                 </select>
             </div>
 

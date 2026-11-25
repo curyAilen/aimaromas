@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Search, Plus, Pencil, Trash2, Cake, Eye } from "lucide-react";
 import type { Client } from "@/lib/types";
+import { CsvExportButton } from "@/components/ui/CsvExportButton";
 
 export function ClientList() {
     const [clients, setClients] = useState<Client[]>([]);
@@ -68,13 +69,21 @@ export function ClientList() {
                         {clients.length !== 1 ? "s" : ""}
                     </p>
                 </div>
-                <Link
-                    href="/admin/clientes/nuevo"
-                    className="flex items-center gap-2 bg-gradient-main text-white rounded-full px-5 py-2.5 text-sm font-medium hover:opacity-90 transition-all active:scale-95"
-                >
-                    <Plus className="w-4 h-4" />
-                    Nuevo cliente
-                </Link>
+                <div className="flex items-center gap-3">
+                    <CsvExportButton
+                        label="Exportar clientes"
+                        files={[
+                            { label: "Clientes con sus pedidos", type: "clientes" },
+                        ]}
+                    />
+                    <Link
+                        href="/admin/clientes/nuevo"
+                        className="flex items-center gap-2 bg-gradient-main text-white rounded-full px-5 py-2.5 text-sm font-medium hover:opacity-90 transition-all active:scale-95"
+                    >
+                        <Plus className="w-4 h-4" />
+                        Nuevo cliente
+                    </Link>
+                </div>
             </div>
 
             <div className="bg-white rounded-3xl shadow-card border border-gray-100/50 overflow-hidden">
