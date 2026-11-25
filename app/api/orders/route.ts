@@ -18,6 +18,7 @@ export async function GET(req: NextRequest) {
         const to = searchParams.get("to") || "";
         const tag = searchParams.get("tag") || "";
         const idReseller = searchParams.get("id_reseller") || "";
+        const payment = searchParams.get("payment") || "";
 
         // Rango por defecto: mes corriente
         const today = new Date();
@@ -66,6 +67,15 @@ export async function GET(req: NextRequest) {
         if (status) {
             query += " AND o.status = ?";
             params.push(status);
+        }
+
+        // Filtro por pago / entrega (los cancelados no cuentan como pendientes)
+        if (payment === "paid") {
+            query += " AND o.paid_at IS NOT NULL AND o.status != 'cancelled'";
+        } else if (payment === "delivered") {
+            query += " AND o.delivered_at IS NOT NULL AND o.status != 'cancelled'";
+        } else if (payment === "unpaid") {
+            query += " AND o.paid_at IS NULL AND o.status != 'cancelled'";
         }
 
         query += " ORDER BY o.createdAt DESC";
